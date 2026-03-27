@@ -1,5 +1,10 @@
 import type { Abi } from 'abitype';
-import type { Address, ContractFunctionArgs, ContractFunctionName, ContractFunctionReturnType } from 'viem';
+import type {
+  Address,
+  ContractFunctionArgs,
+  ContractFunctionName,
+  ContractFunctionReturnType,
+} from 'viem';
 
 export interface ContractInstance<TAbi extends Abi | readonly unknown[]> {
   readonly address: Address;
