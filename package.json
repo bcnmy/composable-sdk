@@ -1,0 +1,21 @@
+{
+  "name": "composable-sdk",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "lint": "biome lint --write .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
+    "release": "changeset publish",
+    "version": "changeset version"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.9",
+    "@changesets/cli": "2.30.0",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "viem": "^2.47.6"
+  }
+}
