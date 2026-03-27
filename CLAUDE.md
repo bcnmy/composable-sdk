@@ -9,6 +9,28 @@ Default to using Bun instead of Node.js.
 - Bun automatically loads .env, so don't use dotenv.
 
 
+## Code Style
+
+Always refer to `biome.json` for coding style rules — indentation, quotes, semicolons, import order, and lint rules are all defined there. Do not deviate from them.
+
+After writing or modifying any code, always run:
+
+```bash
+bun run check
+```
+
+This formats and lints in one pass. Fix any errors before considering the task done.
+
+## Build
+
+After writing or modifying any code, always run:
+
+```bash
+bun run build
+```
+
+Resolve any TypeScript errors before finishing. Do not leave the build in a broken state.
+
 ## Documentation
 
 Always use Context7 (`mcp__context7__resolve-library-id` + `mcp__context7__query-docs`) for library/API documentation, code generation, and setup or configuration steps without waiting for an explicit ask.

@@ -6,12 +6,16 @@
     "lint": "biome lint --write .",
     "format": "biome format --write .",
     "check": "biome check --write .",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
     "release": "changeset publish",
     "version": "changeset version"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.9",
     "@changesets/cli": "2.30.0",
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/bun": "latest",
     "vitest": "^4.1.2"
   },
