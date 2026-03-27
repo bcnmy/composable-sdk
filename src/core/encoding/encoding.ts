@@ -3,25 +3,25 @@ import {
   encodeFunctionData,
   encodePacked,
   erc20Abi,
+  type Hex,
   isAddress,
   isHex,
   zeroAddress,
-  type Hex,
 } from 'viem';
 import type { AnyData } from '../types';
 import {
-  ConstraintType,
-  InputParamFetcherType,
-  OutputParamFetcherType,
   type Constraint,
   type ConstraintField,
+  ConstraintType,
   type InputParam,
+  InputParamFetcherType,
   type OutputParam,
+  type OutputParamFetcherType,
   type RuntimeBalanceOfParams,
-  type runtimeERC20AllowanceOfParams,
   type RuntimeNativeBalanceOfParams,
   type RuntimeParamViaCustomStaticCallParams,
   type RuntimeValue,
+  type runtimeERC20AllowanceOfParams,
 } from './types';
 import { toBytes32 } from './utils';
 

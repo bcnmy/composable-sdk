@@ -1,9 +1,9 @@
-import { erc20Abi } from 'viem';
 import type {
   Address,
   ContractFunctionArgs,
   ContractFunctionName,
   ContractFunctionReturnType,
+  erc20Abi,
 } from 'viem';
 
 export type ERC20Abi = typeof erc20Abi;

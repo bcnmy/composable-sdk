@@ -1,5 +1,5 @@
-import { erc20Abi } from 'viem';
 import type { Address, Chain, PublicClient, Transport } from 'viem';
+import { erc20Abi } from 'viem';
 import type { ERC20TokenInstance, NativeTokenInstance } from './types';
 
 export function ERC20Token<

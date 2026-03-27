@@ -8,17 +8,17 @@ import type { AnyData } from '../types';
  * paramType: The type of the param. This field is optional and it is introduced in the composability version 1.1.0
  * If earlier versions are used, this field may not not present.
  */
-export type InputParam = {
+export interface InputParam {
   paramType?: InputParamType;
   fetcherType: InputParamFetcherType;
   paramData: string;
   constraints: Constraint[];
-};
+}
 
-export type OutputParam = {
+export interface OutputParam {
   fetcherType: OutputParamFetcherType;
   paramData: string;
-};
+}
 
 /**
  * paramType: The type of the param.
@@ -66,10 +66,10 @@ export type OutputParamFetcherType =
 export type ConstraintType = (typeof ConstraintType)[keyof typeof ConstraintType];
 export type InputParamType = (typeof InputParamType)[keyof typeof InputParamType];
 
-export type Constraint = {
+export interface Constraint {
   constraintType: ConstraintType;
   referenceData: string;
-};
+}
 
 /**
  * Base composable call type
@@ -81,52 +81,52 @@ export type Constraint = {
  * Since Composability version 1.1.0, to and value are not required
  * as they are replaced by the input params with according types (TARGET, VALUE)
  */
-export type BaseComposableCall = {
+export interface BaseComposableCall {
   to?: Address;
   value?: bigint;
   functionSig: string;
   inputParams: InputParam[];
   outputParams: OutputParam[];
-};
+}
 
-export type ConstraintField = {
+export interface ConstraintField {
   type: ConstraintType;
   value: AnyData; // type any is being implicitly used. The appropriate value validation happens in the runtime function
-};
+}
 
-export type RuntimeParamViaCustomStaticCallParams = {
+export interface RuntimeParamViaCustomStaticCallParams {
   targetContractAddress: Address;
   functionAbi: Abi;
-  args: Array<AnyData>;
+  args: AnyData[];
   functionName?: string;
   constraints?: ConstraintField[];
-};
+}
 
-export type runtimeERC20AllowanceOfParams = {
+export interface runtimeERC20AllowanceOfParams {
   owner: Address;
   spender: Address;
   tokenAddress: Address;
   constraints?: ConstraintField[];
-};
+}
 
-export type RuntimeBalanceOfParams = {
+export interface RuntimeBalanceOfParams {
   targetAddress: Address;
   tokenAddress: Address;
   constraints?: ConstraintField[];
-};
+}
 
 export type RuntimeNativeBalanceOfParams = Omit<RuntimeBalanceOfParams, 'tokenAddress'>;
 
-export type FunctionContext = {
+export interface FunctionContext {
   inputs: readonly AbiParameter[];
   outputs: readonly AbiParameter[];
   name: string;
   functionType: 'read' | 'write';
   functionSig: string;
-};
+}
 
-export type RuntimeValue = {
+export interface RuntimeValue {
   isRuntime: boolean;
   inputParams: InputParam[];
   outputParams: OutputParam[];
-};
+}

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import { getAddress } from 'viem';
-import { contract } from './contract';
+import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
+import { contract } from './contract';
 
 // Uniswap V3 Factory on Base Sepolia
 const UNISWAP_V3_FACTORY = getAddress('0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24');

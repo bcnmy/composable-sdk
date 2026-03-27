@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import { getAddress } from 'viem';
-import { ERC20Token, NativeToken } from './token';
+import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
+import { ERC20Token, NativeToken } from './token';
 
 // Well-known Base Sepolia token addresses
 const USDC_ADDRESS = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');

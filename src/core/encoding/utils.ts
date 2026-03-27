@@ -1,4 +1,4 @@
-import { isAddress, isHex, padHex, toHex, type Address, type Hex } from 'viem';
+import { type Address, type Hex, isAddress, isHex, padHex, toHex } from 'viem';
 import type { AnyData } from '../types';
 
 export const toBytes32 = (value: bigint | boolean | Address | Hex | number): Hex => {

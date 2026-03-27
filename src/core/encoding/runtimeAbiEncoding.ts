@@ -18,13 +18,13 @@ import {
   type AbiParameter,
   type AbiParameterToPrimitiveType,
   BaseError,
+  boolToHex,
+  concat,
   type Hex,
   IntegerOutOfRangeError,
   InvalidAbiEncodingTypeError,
   InvalidAddressError,
   InvalidArrayError,
-  boolToHex,
-  concat,
   isAddress,
   numberToHex,
   padHex,
@@ -42,7 +42,10 @@ import {
 } from './types';
 import { isRuntimeComposableValue } from './utils';
 
-type PreparedParam = { dynamic: boolean; data: (Hex | RuntimeValue)[] };
+interface PreparedParam {
+  dynamic: boolean;
+  data: (Hex | RuntimeValue)[];
+}
 type TupleAbiParameter = AbiParameter & { components: readonly AbiParameter[] };
 type Tuple = AbiParameterToPrimitiveType<TupleAbiParameter>;
 
@@ -120,9 +123,9 @@ const encodeBytes = <const param extends AbiParameter>(
   }
 
   // Check for param size which is extracted from type with actual byte size
-  if (bytesSize !== Number.parseInt(paramSize))
+  if (bytesSize !== Number.parseInt(paramSize, 10))
     throw new AbiEncodingBytesSizeMismatchError({
-      expectedSize: Number.parseInt(paramSize),
+      expectedSize: Number.parseInt(paramSize, 10),
       value: value,
     });
 
@@ -203,7 +206,7 @@ const encodeArray = <const param extends AbiParameter>(
   // If there is a length specified, the static array length is validated with its elements count
   if (!dynamic && value.length !== length)
     throw new AbiEncodingArrayLengthMismatchError({
-      expectedLength: length!,
+      expectedLength: length as number,
       givenLength: value.length,
       type: `${param.type}[${length}]`,
     });
@@ -264,11 +267,11 @@ const encodeTuple = <const param extends AbiParameter & { components: readonly A
 
   for (let i = 0; i < param.components.length; i++) {
     const param_ = param.components[i];
-    const index = Array.isArray(value) ? i : param_.name;
+    const index = Array.isArray(value) ? i : (param_.name ?? i);
     // The internal elements will be encoded based on its data type. It will handle the nested data type encoding as well
     const preparedParam = prepareParam({
       param: param_,
-      value: (value as AnyData)[index!] as readonly unknown[],
+      value: (value as AnyData)[index] as readonly unknown[],
     });
     preparedParams.push(preparedParam);
     // If any of the internal element of a tuple is dynamic ? The entire tuple is treated as dynamic tuple
@@ -382,7 +385,7 @@ const prepareParams = <const params extends readonly AbiParameter[]>({
   values,
 }: {
   params: params;
-  values: Array<AnyData>;
+  values: AnyData[];
 }): PreparedParam[] => {
   const preparedParams: PreparedParam[] = [];
   for (let i = 0; i < params.length; i++) {
@@ -465,7 +468,7 @@ const prepareParam = <const param extends AbiParameter>({
   });
 };
 
-export const encodeRuntimeFunctionData = (inputs: AbiParameter[], args: Array<AnyData>) => {
+export const encodeRuntimeFunctionData = (inputs: AbiParameter[], args: AnyData[]) => {
   // If there is no arguments to the function, no need for encoding at all.
   if (!inputs || inputs.length === 0) {
     return ['0x' as Hex];
@@ -482,7 +485,7 @@ export const encodeRuntimeFunctionData = (inputs: AbiParameter[], args: Array<An
   // Prepare the encoding
   const preparedParams = prepareParams({
     params: inputs,
-    values: args as Array<AnyData>,
+    values: args as AnyData[],
   });
 
   // Encoding the prepared data types based on static and dynamic natrue
