@@ -1,5 +1,4 @@
-import type { Abi } from 'abitype';
-import type { Address, Chain, PublicClient, Transport } from 'viem';
+import type { Abi, Address, Chain, PublicClient, Transport } from 'viem';
 import {
   type ComposableCall,
   compressCalldataInputParams,
