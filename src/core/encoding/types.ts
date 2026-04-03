@@ -106,7 +106,7 @@ export interface RuntimeParamViaCustomStaticCallParams {
   targetContractAddress: Address;
   functionAbi: Abi;
   args: AnyData[];
-  functionName?: string;
+  functionName: string;
   constraints?: ConstraintField[];
 }
 
