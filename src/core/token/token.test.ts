@@ -1,6 +1,7 @@
 import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
+import { InputParamFetcherType } from '../encoding';
 import { ERC20Token, NativeToken } from './token';
 
 // Well-known Base Sepolia token addresses
@@ -81,14 +82,207 @@ describe('ERC20Token — WETH (Base Sepolia)', () => {
 describe('NativeToken (Base Sepolia)', () => {
   const native = NativeToken(publicClient);
 
-  it('getBalance returns a bigint', async () => {
-    const balance = await native.getBalance(WETH_CONTRACT);
+  it('balance returns a bigint', async () => {
+    const balance = await native.balance(WETH_CONTRACT);
     expect(typeof balance).toBe('bigint');
   });
 
-  it('getBalance of the WETH contract is positive', async () => {
+  it('balance of the WETH contract is positive', async () => {
     // The WETH contract always holds ETH equal to its totalSupply
-    const balance = await native.getBalance(WETH_CONTRACT);
+    const balance = await native.balance(WETH_CONTRACT);
     expect(balance > 0n).toBe(true);
+  });
+
+  it('runtimeBalance returns a RuntimeValue with isRuntime=true', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT);
+    expect(rv.isRuntime).toBe(true);
+  });
+
+  it('runtimeBalance uses BALANCE fetcherType', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT);
+    expect(rv.inputParams).toHaveLength(1);
+    expect(rv.inputParams[0].fetcherType).toBe(InputParamFetcherType.BALANCE);
+  });
+
+  it('runtimeBalance encodes the target address in paramData', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT);
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      WETH_CONTRACT.slice(2).toLowerCase(),
+    );
+  });
+
+  it('runtimeBalance produces different paramData for different targets', () => {
+    const a = native.runtimeBalance(WETH_CONTRACT);
+    const b = native.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — runtimeBalance
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — runtimeBalance (USDC)', () => {
+  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+
+  it('runtimeBalance returns a RuntimeValue with isRuntime=true', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(rv.isRuntime).toBe(true);
+  });
+
+  it('runtimeBalance uses BALANCE fetcherType', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(rv.inputParams).toHaveLength(1);
+    expect(rv.inputParams[0].fetcherType).toBe(InputParamFetcherType.BALANCE);
+  });
+
+  it('runtimeBalance encodes the token address in paramData', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    // paramData is encodePacked([tokenAddress, targetAddress])
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      USDC_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('runtimeBalance encodes the owner address in paramData', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      UNISWAP_V3_ROUTER.slice(2).toLowerCase(),
+    );
+  });
+
+  it('runtimeBalance produces different paramData for different owners', () => {
+    const a = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    const b = usdc.runtimeBalance(WETH_ADDRESS);
+    expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
+  });
+
+  it('runtimeBalance on WETH uses WETH as token address in paramData', () => {
+    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const rv = weth.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      WETH_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — runtimeAllowance
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — runtimeAllowance (USDC)', () => {
+  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+
+  it('runtimeAllowance returns a RuntimeValue with isRuntime=true', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    expect(rv.isRuntime).toBe(true);
+  });
+
+  it('runtimeAllowance uses STATIC_CALL fetcherType', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    expect(rv.inputParams).toHaveLength(1);
+    expect(rv.inputParams[0].fetcherType).toBe(InputParamFetcherType.STATIC_CALL);
+  });
+
+  it('runtimeAllowance encodes the token address in paramData', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      USDC_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('runtimeAllowance produces different paramData for different owners', () => {
+    const a = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    const b = usdc.runtimeAllowance(WETH_ADDRESS, WETH_ADDRESS);
+    expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
+  });
+
+  it('runtimeAllowance produces different paramData for different spenders', () => {
+    const a = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, USDC_ADDRESS);
+    const b = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
+  });
+
+  it('runtimeAllowance on WETH uses WETH as token address in paramData', () => {
+    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const rv = weth.runtimeAllowance(UNISWAP_V3_ROUTER, USDC_ADDRESS);
+    expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
+      WETH_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Constraints on runtime values
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — runtimeBalance with constraints', () => {
+  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+
+  it('gte constraint adds one constraint to inputParams[0]', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER, [{ gte: 1_000_000n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+
+  it('lte constraint adds one constraint to inputParams[0]', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER, [{ lte: 5_000_000n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+
+  it('eq constraint adds one constraint to inputParams[0]', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER, [{ eq: 0n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+
+  it('multiple constraints are all added', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER, [{ gte: 1_000n }, { lte: 9_000n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(2);
+  });
+
+  it('no constraints defaults to empty', () => {
+    const rv = usdc.runtimeBalance(UNISWAP_V3_ROUTER);
+    expect(rv.inputParams[0].constraints).toHaveLength(0);
+  });
+});
+
+describe('ERC20Token — runtimeAllowance with constraints', () => {
+  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+
+  it('gte constraint adds one constraint', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS, [{ gte: 500n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+
+  it('multiple constraints are all added', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS, [
+      { gte: 100n },
+      { lte: 1_000n },
+      { eq: 500n },
+    ]);
+    expect(rv.inputParams[0].constraints).toHaveLength(3);
+  });
+
+  it('no constraints defaults to empty', () => {
+    const rv = usdc.runtimeAllowance(UNISWAP_V3_ROUTER, WETH_ADDRESS);
+    expect(rv.inputParams[0].constraints).toHaveLength(0);
+  });
+});
+
+describe('NativeToken — runtimeBalance with constraints', () => {
+  const native = NativeToken(publicClient);
+
+  it('gte constraint adds one constraint', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT, [{ gte: 1n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+
+  it('multiple constraints are all added', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT, [{ gte: 0n }, { lte: 100n }]);
+    expect(rv.inputParams[0].constraints).toHaveLength(2);
+  });
+
+  it('no constraints defaults to empty', () => {
+    const rv = native.runtimeBalance(WETH_CONTRACT);
+    expect(rv.inputParams[0].constraints).toHaveLength(0);
   });
 });

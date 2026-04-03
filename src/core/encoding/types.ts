@@ -1,4 +1,4 @@
-import type { Abi, AbiParameter, Address } from 'viem';
+import type { Abi, AbiParameter, Address, Hex } from 'viem';
 import type { AnyData } from '../types';
 
 /**
@@ -76,14 +76,10 @@ export interface Constraint {
  * @param functionSig - The function signature of the composable call
  * @param inputParams - The input parameters of the composable call
  * @param outputParams - The output parameters of the composable call
- * @param to - The address of the target contract.
- * @param value - The value of the composable call.
  * Since Composability version 1.1.0, to and value are not required
  * as they are replaced by the input params with according types (TARGET, VALUE)
  */
-export interface BaseComposableCall {
-  to?: Address;
-  value?: bigint;
+export interface ComposableCall {
   functionSig: string;
   inputParams: InputParam[];
   outputParams: OutputParam[];
@@ -93,6 +89,18 @@ export interface ConstraintField {
   type: ConstraintType;
   value: AnyData; // type any is being implicitly used. The appropriate value validation happens in the runtime function
 }
+
+/** Accepted value types for a constraint */
+type ConstraintValue = bigint | boolean | Hex | Address;
+
+/**
+ * User-facing constraint format. Pass as the optional last argument to any runtimeXxx method.
+ * @example [{ gte: 1000n }, { lte: 5000n }]
+ */
+export type RuntimeConstraint =
+  | { gte: ConstraintValue }
+  | { lte: ConstraintValue }
+  | { eq: ConstraintValue };
 
 export interface RuntimeParamViaCustomStaticCallParams {
   targetContractAddress: Address;
