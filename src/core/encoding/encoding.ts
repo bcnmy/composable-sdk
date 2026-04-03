@@ -14,6 +14,7 @@ import {
 import type { AnyData } from '../types';
 import { encodeAddress, encodeRuntimeFunctionData } from './runtimeAbiEncoding';
 import {
+  type ComposableCall,
   type Constraint,
   type ConstraintField,
   ConstraintType,
@@ -30,6 +31,7 @@ import {
   type runtimeERC20AllowanceOfParams,
 } from './types';
 import { isRuntimeComposableValue, toBytes32 } from './utils';
+import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
 
 export const prepareInputParam = (
   fetcherType: InputParamFetcherType,
@@ -389,4 +391,25 @@ export const compressCalldataInputParams = (inputParams: InputParam[]): InputPar
   }
 
   return compressedParams;
+};
+
+/**
+ * @description Encodes a composable calls for execution
+ * @param call - The calls to encode
+ * @returns The encoded composable compatible call
+ */
+const encodeExecuteComposable = async (calls: ComposableCall[]): Promise<Hex> => {
+  const composableCalls = calls.map((call) => {
+    return {
+      functionSig: call.functionSig,
+      inputParams: call.inputParams,
+      outputParams: call.outputParams,
+    };
+  });
+
+  return encodeFunctionData({
+    abi: COMPOSABILITY_MODULE_ABI_V1_1_0,
+    functionName: 'executeComposable', // Function selector in Composability module which executes the composable calls.
+    args: [composableCalls], // Multiple composable calls can be batched here.
+  });
 };
