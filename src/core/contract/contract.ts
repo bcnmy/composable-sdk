@@ -25,10 +25,10 @@ export function contract<
   return {
     address,
     abi,
-    read(functionName, args) {
+    read({ functionName, args }) {
       return publicClient.readContract({ abi, address, functionName, args });
     },
-    write(functionName, args, value) {
+    write({ functionName, args, value }) {
       const functionContext = getFunctionContextFromAbi(functionName, abi as Abi);
 
       const inputParams: InputParam[] = prepareComposableInputCalldataParams(
@@ -63,9 +63,9 @@ export function contract<
         outputParams: [],
       };
 
-      return [composableCall];
+      return composableCall;
     },
-    runtimeValue(functionName, args, constraints = []) {
+    runtimeValue({ functionName, args, constraints = [] }) {
       return runtimeParamViaCustomStaticCall({
         targetContractAddress: address,
         functionAbi: abi as Abi,

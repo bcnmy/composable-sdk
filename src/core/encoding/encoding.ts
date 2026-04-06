@@ -12,6 +12,7 @@ import {
   zeroAddress,
 } from 'viem';
 import type { AnyData } from '../types';
+import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
 import { encodeAddress, encodeRuntimeFunctionData } from './runtimeAbiEncoding';
 import {
   type ComposableCall,
@@ -31,7 +32,6 @@ import {
   type runtimeERC20AllowanceOfParams,
 } from './types';
 import { isRuntimeComposableValue, toBytes32 } from './utils';
-import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
 
 export const prepareInputParam = (
   fetcherType: InputParamFetcherType,
@@ -398,7 +398,7 @@ export const compressCalldataInputParams = (inputParams: InputParam[]): InputPar
  * @param call - The calls to encode
  * @returns The encoded composable compatible call
  */
-const encodeExecuteComposable = async (calls: ComposableCall[]): Promise<Hex> => {
+export const encodeExecuteComposable = async (calls: ComposableCall[]): Promise<Hex> => {
   const composableCalls = calls.map((call) => {
     return {
       functionSig: call.functionSig,

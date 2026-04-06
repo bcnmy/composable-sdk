@@ -8,29 +8,43 @@ import {
 } from '../encoding';
 import type { ERC20TokenInstance, NativeTokenInstance } from './types';
 
+function resolveAddress(
+  provided: Address | undefined,
+  fallback: Address | undefined,
+  label: string,
+): Address {
+  const resolved = provided ?? fallback;
+  if (!resolved) throw new Error(`${label} is required`);
+  return resolved;
+}
+
 export function ERC20Token<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
->(publicClient: PublicClient<TTransport, TChain>, address: Address): ERC20TokenInstance {
+>(
+  publicClient: PublicClient<TTransport, TChain>,
+  address: Address,
+  accountAddress?: Address,
+): ERC20TokenInstance {
   return {
     address,
     abi: erc20Abi,
-    read(functionName, args) {
+    read({ functionName, args }) {
       return publicClient.readContract({ abi: erc20Abi, address, functionName, args });
     },
-    runtimeBalance(ownerAddress, constraints = []) {
+    runtimeBalance({ owner, constraints } = {}) {
       return runtimeERC20BalanceOf({
-        targetAddress: ownerAddress,
+        targetAddress: resolveAddress(owner, accountAddress, 'owner'),
         tokenAddress: address,
-        constraints: toConstraintFields(constraints),
+        constraints: toConstraintFields(constraints ?? []),
       });
     },
-    runtimeAllowance(ownerAddress, spenderAddress, constraints = []) {
+    runtimeAllowance({ spender, owner, constraints }) {
       return runtimeERC20AllowanceOf({
-        owner: ownerAddress,
-        spender: spenderAddress,
+        owner: resolveAddress(owner, accountAddress, 'owner'),
+        spender,
         tokenAddress: address,
-        constraints: toConstraintFields(constraints),
+        constraints: toConstraintFields(constraints ?? []),
       });
     },
   };
@@ -39,15 +53,17 @@ export function ERC20Token<
 export function NativeToken<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
->(publicClient: PublicClient<TTransport, TChain>): NativeTokenInstance {
+>(publicClient: PublicClient<TTransport, TChain>, accountAddress?: Address): NativeTokenInstance {
   return {
-    balance(address) {
-      return publicClient.getBalance({ address });
+    balance({ address } = {}) {
+      return publicClient.getBalance({
+        address: resolveAddress(address, accountAddress, 'address'),
+      });
     },
-    runtimeBalance(address, constraints = []) {
+    runtimeBalance({ address, constraints } = {}) {
       return runtimeNativeBalanceOf({
-        targetAddress: address,
-        constraints: toConstraintFields(constraints),
+        targetAddress: resolveAddress(address, accountAddress, 'address'),
+        constraints: toConstraintFields(constraints ?? []),
       });
     },
   };

@@ -21,17 +21,25 @@ export interface ContractInstance<TAbi extends Abi | readonly unknown[]> {
   read<
     TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'>,
     const TArgs extends ContractFunctionArgs<TAbi, 'pure' | 'view', TFunctionName>,
-  >(
-    functionName: TFunctionName,
-    args: TArgs,
-  ): Promise<ContractFunctionReturnType<TAbi, 'pure' | 'view', TFunctionName, TArgs>>;
+  >(params: {
+    functionName: TFunctionName;
+    args: TArgs;
+  }): Promise<ContractFunctionReturnType<TAbi, 'pure' | 'view', TFunctionName, TArgs>>;
   write<
     TFunctionName extends ContractFunctionName<TAbi, 'nonpayable' | 'payable'>,
     const TArgs extends ContractFunctionArgs<TAbi, 'nonpayable' | 'payable', TFunctionName> &
       readonly unknown[],
-  >(functionName: TFunctionName, args: ComposableArgs<TArgs>, value?: bigint): ComposableCall[];
+  >(params: {
+    functionName: TFunctionName;
+    args: ComposableArgs<TArgs>;
+    value?: bigint;
+  }): ComposableCall;
   runtimeValue<
     TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'>,
     const TArgs extends ContractFunctionArgs<TAbi, 'pure' | 'view', TFunctionName>,
-  >(functionName: TFunctionName, args: TArgs, constraints?: RuntimeConstraint[]): RuntimeValue;
+  >(params: {
+    functionName: TFunctionName;
+    args: TArgs;
+    constraints?: RuntimeConstraint[];
+  }): RuntimeValue;
 }

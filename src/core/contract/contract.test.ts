@@ -102,29 +102,29 @@ describe('contract — Uniswap V3 Factory (Base Sepolia)', () => {
   });
 
   it('read(owner) returns a valid address', async () => {
-    const owner = await factory.read('owner', []);
+    const owner = await factory.read({ functionName: 'owner', args: [] });
     expect(owner).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
   it('read(feeAmountTickSpacing) returns 60 for the 0.3% fee tier', async () => {
-    const tickSpacing = await factory.read('feeAmountTickSpacing', [3000]);
+    const tickSpacing = await factory.read({ functionName: 'feeAmountTickSpacing', args: [3000] });
     expect(tickSpacing).toBe(60);
   });
 
   it('read(feeAmountTickSpacing) returns 200 for the 1% fee tier', async () => {
-    const tickSpacing = await factory.read('feeAmountTickSpacing', [10000]);
+    const tickSpacing = await factory.read({ functionName: 'feeAmountTickSpacing', args: [10000] });
     expect(tickSpacing).toBe(200);
   });
 
   it('read(getPool) returns an address for USDC/WETH 0.3% pool', async () => {
-    const pool = await factory.read('getPool', [USDC, WETH, 3000]);
+    const pool = await factory.read({ functionName: 'getPool', args: [USDC, WETH, 3000] });
     expect(pool).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
   it('read(getPool) is symmetric — same pool regardless of token order', async () => {
     const [poolA, poolB] = await Promise.all([
-      factory.read('getPool', [USDC, WETH, 3000]),
-      factory.read('getPool', [WETH, USDC, 3000]),
+      factory.read({ functionName: 'getPool', args: [USDC, WETH, 3000] }),
+      factory.read({ functionName: 'getPool', args: [WETH, USDC, 3000] }),
     ]);
     expect(poolA).toBe(poolB);
   });
@@ -138,44 +138,44 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
   const token = contract(publicClient, USDC, ERC20_WRITE_ABI);
   const SPENDER = WETH; // arbitrary recipient/spender address
 
-  it('write(transfer) returns an array with one ComposableCall', () => {
-    const result = token.write('transfer', [SPENDER, 1_000_000n]);
-    expect(Array.isArray(result)).toBe(true);
-    expect(result).toHaveLength(1);
+  it('write(transfer) returns a ComposableCall', () => {
+    const result = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+    expect(typeof result).toBe('object');
+    expect(result.functionSig).toBeDefined();
   });
 
   it('write(transfer) encodes the correct function selector', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     // keccak256("transfer(address,uint256)") first 4 bytes = 0xa9059cbb
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
   it('write(approve) encodes the correct function selector', () => {
-    const [call] = token.write('approve', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'approve', args: [SPENDER, 1_000_000n] });
     // keccak256("approve(address,uint256)") first 4 bytes = 0x095ea7b3
     expect(call.functionSig).toBe('0x095ea7b3');
   });
 
   it('write(transferFrom) encodes the correct function selector', () => {
-    const [call] = token.write('transferFrom', [USDC, SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transferFrom', args: [USDC, SPENDER, 1_000_000n] });
     // keccak256("transferFrom(address,address,uint256)") first 4 bytes = 0x23b872dd
     expect(call.functionSig).toBe('0x23b872dd');
   });
 
   it('write(transfer) outputParams is empty', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     expect(call.outputParams).toHaveLength(0);
   });
 
   it('write(transfer) inputParams includes a CALL_DATA param', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const calldataParam = call.inputParams.find((p) => p.paramType === InputParamType.CALL_DATA);
     expect(calldataParam).toBeDefined();
     expect(calldataParam?.paramData).toMatch(/^0x[0-9a-fA-F]+$/);
   });
 
   it('write(transfer) inputParams includes a TARGET param with the contract address', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const targetParam = call.inputParams.find((p) => p.paramType === InputParamType.TARGET);
     expect(targetParam).toBeDefined();
     // paramData is the ABI-encoded address (padded to 32 bytes), USDC address should be present
@@ -183,62 +183,62 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
   });
 
   it('write(transfer) without value does not include a VALUE param', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const valueParam = call.inputParams.find((p) => p.paramType === InputParamType.VALUE);
     expect(valueParam).toBeUndefined();
   });
 
   it('write(transfer) with value includes a VALUE param', () => {
-    const [call] = token.write('transfer', [SPENDER, 1_000_000n], 1n);
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n], value: 1n });
     const valueParam = call.inputParams.find((p) => p.paramType === InputParamType.VALUE);
     expect(valueParam).toBeDefined();
   });
 
   it('write(transfer) is deterministic for the same args', () => {
-    const [a] = token.write('transfer', [SPENDER, 500n]);
-    const [b] = token.write('transfer', [SPENDER, 500n]);
+    const a = token.write({ functionName: 'transfer', args: [SPENDER, 500n] });
+    const b = token.write({ functionName: 'transfer', args: [SPENDER, 500n] });
     expect(a.functionSig).toBe(b.functionSig);
     expect(JSON.stringify(a.inputParams)).toBe(JSON.stringify(b.inputParams));
   });
 
   it('write(transfer) produces different inputParams for different amounts', () => {
-    const [a] = token.write('transfer', [SPENDER, 1n]);
-    const [b] = token.write('transfer', [SPENDER, 2n]);
+    const a = token.write({ functionName: 'transfer', args: [SPENDER, 1n] });
+    const b = token.write({ functionName: 'transfer', args: [SPENDER, 2n] });
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
   it('write(transfer) produces different inputParams for different recipients', () => {
-    const [a] = token.write('transfer', [USDC, 1_000_000n]);
-    const [b] = token.write('transfer', [WETH, 1_000_000n]);
+    const a = token.write({ functionName: 'transfer', args: [USDC, 1_000_000n] });
+    const b = token.write({ functionName: 'transfer', args: [WETH, 1_000_000n] });
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
   it('write(transfer) accepts a RuntimeValue for the amount arg', () => {
-    const runtimeAmount = token.runtimeValue('balanceOf', [SPENDER]);
-    const [call] = token.write('transfer', [SPENDER, runtimeAmount]);
+    const runtimeAmount = token.runtimeValue({ functionName: 'balanceOf', args: [SPENDER] });
+    const call = token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] });
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
   it('write(transfer) accepts a RuntimeValue for the recipient arg', () => {
     const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
-    const runtimeRecipient = factory.runtimeValue('owner', []);
-    const [call] = token.write('transfer', [runtimeRecipient, 1_000_000n]);
+    const runtimeRecipient = factory.runtimeValue({ functionName: 'owner', args: [] });
+    const call = token.write({ functionName: 'transfer', args: [runtimeRecipient, 1_000_000n] });
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
   it('write(transfer) with RuntimeValue arg produces more inputParams than a plain call', () => {
-    const runtimeAmount = token.runtimeValue('balanceOf', [SPENDER]);
-    const [composable] = token.write('transfer', [SPENDER, runtimeAmount]);
-    const [plain] = token.write('transfer', [SPENDER, 1_000_000n]);
+    const runtimeAmount = token.runtimeValue({ functionName: 'balanceOf', args: [SPENDER] });
+    const composable = token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] });
+    const plain = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     // RuntimeValue injects a STATIC_CALL inputParam in addition to the calldata params
     expect(composable.inputParams.length).toBeGreaterThan(plain.inputParams.length);
   });
 
   it('write(approve) accepts RuntimeValues for both args', () => {
     const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
-    const runtimeSpender = factory.runtimeValue('owner', []);
-    const runtimeAmount = token.runtimeValue('totalSupply', []);
-    const [call] = token.write('approve', [runtimeSpender, runtimeAmount]);
+    const runtimeSpender = factory.runtimeValue({ functionName: 'owner', args: [] });
+    const runtimeAmount = token.runtimeValue({ functionName: 'totalSupply', args: [] });
+    const call = token.write({ functionName: 'approve', args: [runtimeSpender, runtimeAmount] });
     expect(call.functionSig).toBe('0x095ea7b3');
   });
 });
@@ -251,75 +251,95 @@ describe('contract — runtimeValue (Uniswap V3 Factory)', () => {
   const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
 
   it('runtimeValue returns a RuntimeValue with isRuntime=true', () => {
-    const rv = factory.runtimeValue('owner', []);
+    const rv = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(rv.isRuntime).toBe(true);
   });
 
   it('runtimeValue uses STATIC_CALL fetcherType', () => {
-    const rv = factory.runtimeValue('owner', []);
+    const rv = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(rv.inputParams).toHaveLength(1);
     expect(rv.inputParams[0].fetcherType).toBe(InputParamFetcherType.STATIC_CALL);
   });
 
   it('runtimeValue encodes the target contract address in paramData', () => {
-    const rv = factory.runtimeValue('owner', []);
+    const rv = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
       UNISWAP_V3_FACTORY.slice(2).toLowerCase(),
     );
   });
 
   it('runtimeValue(getPool) encodes the contract address in paramData', () => {
-    const rv = factory.runtimeValue('getPool', [USDC, WETH, 3000]);
+    const rv = factory.runtimeValue({ functionName: 'getPool', args: [USDC, WETH, 3000] });
     expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
       UNISWAP_V3_FACTORY.slice(2).toLowerCase(),
     );
   });
 
   it('runtimeValue produces different paramData for different function calls', () => {
-    const a = factory.runtimeValue('owner', []);
-    const b = factory.runtimeValue('getPool', [USDC, WETH, 3000]);
+    const a = factory.runtimeValue({ functionName: 'owner', args: [] });
+    const b = factory.runtimeValue({ functionName: 'getPool', args: [USDC, WETH, 3000] });
     expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
   });
 
   it('runtimeValue(getPool) produces different paramData for different args', () => {
-    const a = factory.runtimeValue('getPool', [USDC, WETH, 3000]);
-    const b = factory.runtimeValue('getPool', [USDC, WETH, 10000]);
+    const a = factory.runtimeValue({ functionName: 'getPool', args: [USDC, WETH, 3000] });
+    const b = factory.runtimeValue({ functionName: 'getPool', args: [USDC, WETH, 10000] });
     expect(a.inputParams[0].paramData).not.toBe(b.inputParams[0].paramData);
   });
 
   it('runtimeValue outputParams is empty', () => {
-    const rv = factory.runtimeValue('owner', []);
+    const rv = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(rv.outputParams).toHaveLength(0);
   });
 
   it('no constraints defaults to empty constraints array', () => {
-    const rv = factory.runtimeValue('owner', []);
+    const rv = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(rv.inputParams[0].constraints).toHaveLength(0);
   });
 
   it('gte constraint adds one constraint', () => {
-    const rv = factory.runtimeValue('feeAmountTickSpacing', [3000], [{ gte: 10n }]);
+    const rv = factory.runtimeValue({
+      functionName: 'feeAmountTickSpacing',
+      args: [3000],
+      constraints: [{ gte: 10n }],
+    });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
   });
 
   it('lte constraint adds one constraint', () => {
-    const rv = factory.runtimeValue('feeAmountTickSpacing', [3000], [{ lte: 200n }]);
+    const rv = factory.runtimeValue({
+      functionName: 'feeAmountTickSpacing',
+      args: [3000],
+      constraints: [{ lte: 200n }],
+    });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
   });
 
   it('eq constraint adds one constraint', () => {
-    const rv = factory.runtimeValue('feeAmountTickSpacing', [3000], [{ eq: 60n }]);
+    const rv = factory.runtimeValue({
+      functionName: 'feeAmountTickSpacing',
+      args: [3000],
+      constraints: [{ eq: 60n }],
+    });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
   });
 
   it('multiple constraints are all added', () => {
-    const rv = factory.runtimeValue('feeAmountTickSpacing', [3000], [{ gte: 10n }, { lte: 200n }]);
+    const rv = factory.runtimeValue({
+      functionName: 'feeAmountTickSpacing',
+      args: [3000],
+      constraints: [{ gte: 10n }, { lte: 200n }],
+    });
     expect(rv.inputParams[0].constraints).toHaveLength(2);
   });
 
   it('constraints do not affect the encoded paramData', () => {
-    const withConstraint = factory.runtimeValue('owner', [], [{ gte: 1n }]);
-    const withoutConstraint = factory.runtimeValue('owner', []);
+    const withConstraint = factory.runtimeValue({
+      functionName: 'owner',
+      args: [],
+      constraints: [{ gte: 1n }],
+    });
+    const withoutConstraint = factory.runtimeValue({ functionName: 'owner', args: [] });
     expect(withConstraint.inputParams[0].paramData).toBe(
       withoutConstraint.inputParams[0].paramData,
     );
