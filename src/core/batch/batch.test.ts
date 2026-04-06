@@ -201,6 +201,50 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ComposableBatch — calls getter
+// ---------------------------------------------------------------------------
+
+describe('ComposableBatch — calls getter', () => {
+  it('calls is empty on a fresh batch', () => {
+    const batch = ComposableBatch(publicClient, ACCOUNT);
+    expect(batch.calls).toHaveLength(0);
+  });
+
+  it('calls reflects added single call', () => {
+    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const call = batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] });
+    batch.add(call);
+    expect(batch.calls).toHaveLength(1);
+    expect(batch.calls[0].functionSig).toBe(call.functionSig);
+  });
+
+  it('calls reflects added array of calls', () => {
+    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const token = batch.contract(USDC, erc20Abi);
+    batch.add([
+      token.write({ functionName: 'transfer', args: [WETH, 1n] }),
+      token.write({ functionName: 'approve', args: [WETH, 1n] }),
+    ]);
+    expect(batch.calls).toHaveLength(2);
+  });
+
+  it('calls is empty after clear()', () => {
+    const batch = ComposableBatch(publicClient, ACCOUNT);
+    batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
+    batch.clear();
+    expect(batch.calls).toHaveLength(0);
+  });
+
+  it('calls returns a copy — mutating it does not affect the batch', () => {
+    const batch = ComposableBatch(publicClient, ACCOUNT);
+    batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
+    const snapshot = batch.calls;
+    snapshot.pop();
+    expect(batch.calls).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ComposableBatch — contract
 // ---------------------------------------------------------------------------
 

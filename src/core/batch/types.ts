@@ -16,6 +16,7 @@ export interface ComposableBatchInstance<
     address: Address,
     abi: TAbi,
   ): ContractInstance<TAbi>;
+  readonly calls: ComposableCall[];
   add(call: ComposableCall | ComposableCall[]): void;
   clear(): void;
   toCalldata(): Promise<Hex>;

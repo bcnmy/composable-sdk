@@ -28,6 +28,9 @@ export function ComposableBatch<
     contract(address, abi) {
       return contract(publicClient, address, abi);
     },
+    get calls() {
+      return [...calls];
+    },
     add(call) {
       if (Array.isArray(call)) {
         calls.push(...call);
