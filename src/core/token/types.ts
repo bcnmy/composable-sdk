@@ -49,6 +49,14 @@ export interface ERC20TokenInstance {
     args: ComposableArgs<TArgs>;
     value?: bigint;
   }): ComposableCall;
+  check<
+    TFunctionName extends ContractFunctionName<ERC20Abi, 'pure' | 'view'>,
+    const TArgs extends ContractFunctionArgs<ERC20Abi, 'pure' | 'view', TFunctionName>,
+  >(params: {
+    functionName: TFunctionName;
+    args: TArgs;
+    constraints: RuntimeConstraint[];
+  }): ComposableCall;
   runtimeBalance(params?: ERC20RuntimeBalanceParams): RuntimeValue;
   runtimeAllowance(params: ERC20RuntimeAllowanceParams): RuntimeValue;
 }

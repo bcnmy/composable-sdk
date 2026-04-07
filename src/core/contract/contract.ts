@@ -1,13 +1,23 @@
-import type { Abi, Address, Chain, PublicClient, Transport } from 'viem';
+import {
+  type Abi,
+  type Address,
+  type Chain,
+  encodeAbiParameters,
+  encodeFunctionData,
+  type PublicClient,
+  type Transport,
+  zeroAddress,
+} from 'viem';
 import {
   type ComposableCall,
-  compressCalldataInputParams,
+  formatInputParams,
   type InputParam,
-  InputParamType,
+  InputParamFetcherType,
   prepareComposableInputCalldataParams,
-  prepareTargetAndValueInputParams,
+  prepareInputParam,
   runtimeParamViaCustomStaticCall,
   toConstraintFields,
+  validateAndProcessConstraints,
 } from '../encoding';
 import { getFunctionContextFromAbi } from '../encoding/runtimeAbiEncoding';
 import type { AnyData } from '../types';
@@ -36,29 +46,9 @@ export function contract<
         args as AnyData[],
       );
 
-      const compressedInputParams = compressCalldataInputParams(inputParams);
-
-      // for composability version 1.1.0+, we need to add paramType: CALL_DATA to the input params
-      // since the input param type field is required for composability version 1.1.0+
-      const formattedInputParams = compressedInputParams.map((param) => ({
-        ...param,
-        paramType: InputParamType.CALL_DATA,
-      }));
-
-      const { targetInputParam, valueInputParam } = prepareTargetAndValueInputParams(
-        address,
-        value,
-      );
-
-      const finalInputParams = [
-        ...formattedInputParams,
-        targetInputParam,
-        ...(valueInputParam ? [valueInputParam] : []), // do not add valueInputParam if it is undefined
-      ];
-
       const composableCall: ComposableCall = {
         functionSig: functionContext.functionSig,
-        inputParams: finalInputParams,
+        inputParams: formatInputParams(inputParams, address, value),
         // In the current scope, output params are not handled. When more composability functions are added, this will change
         outputParams: [],
       };
@@ -73,6 +63,36 @@ export function contract<
         args: args as AnyData[],
         constraints: toConstraintFields(constraints),
       });
+    },
+    check({ functionName, args, constraints }) {
+      const encodedParam = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'bytes' }],
+        [
+          address,
+          encodeFunctionData({
+            abi: abi as Abi,
+            functionName: functionName as string,
+            args: args as never[],
+          }),
+        ],
+      );
+
+      const constraintsToAdd = validateAndProcessConstraints(toConstraintFields(constraints));
+
+      const inputParams: InputParam[] = [
+        prepareInputParam(InputParamFetcherType.STATIC_CALL, encodedParam, constraintsToAdd),
+      ];
+
+      const composableCall: ComposableCall = {
+        // Dummy functionSig, as this is a predicate call the calldata execution will not happen
+        functionSig: '0x11111111',
+        // target address will be always zero address here, which converts this composable call into predicate composable call
+        inputParams: formatInputParams(inputParams, zeroAddress),
+        // In the current scope, output params are not handled. When more composability functions are added, this will change
+        outputParams: [],
+      };
+
+      return composableCall;
     },
   };
 }

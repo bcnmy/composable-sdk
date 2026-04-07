@@ -255,7 +255,7 @@ export const prepareTargetAndValueInputParams = (
     targetInputParam = {
       paramType: InputParamType.TARGET,
       fetcherType: InputParamFetcherType.RAW_BYTES,
-      paramData: encodeAddress(to as Address).data[0] as `0x${string}`,
+      paramData: encodeAddress(to as Hex).data[0] as `0x${string}`,
       constraints: [],
     };
   } else {
@@ -391,6 +391,25 @@ export const compressCalldataInputParams = (inputParams: InputParam[]): InputPar
   }
 
   return compressedParams;
+};
+
+export const formatInputParams = (inputParams: InputParam[], address: Address, value?: bigint) => {
+  const compressedInputParams = compressCalldataInputParams(inputParams);
+
+  // for composability version 1.1.0+, we need to add paramType: CALL_DATA to the input params
+  // since the input param type field is required for composability version 1.1.0+
+  const formattedInputParams = compressedInputParams.map((param) => ({
+    ...param,
+    paramType: InputParamType.CALL_DATA,
+  }));
+
+  const { targetInputParam, valueInputParam } = prepareTargetAndValueInputParams(address, value);
+
+  return [
+    ...formattedInputParams,
+    targetInputParam,
+    ...(valueInputParam ? [valueInputParam] : []), // do not add valueInputParam if it is undefined
+  ];
 };
 
 /**

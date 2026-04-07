@@ -42,4 +42,12 @@ export interface ContractInstance<TAbi extends Abi | readonly unknown[]> {
     args: TArgs;
     constraints?: RuntimeConstraint[];
   }): RuntimeValue;
+  check<
+    TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'>,
+    const TArgs extends ContractFunctionArgs<TAbi, 'pure' | 'view', TFunctionName>,
+  >(params: {
+    functionName: TFunctionName;
+    args: TArgs;
+    constraints: RuntimeConstraint[];
+  }): ComposableCall;
 }

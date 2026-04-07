@@ -38,6 +38,9 @@ export function ERC20Token<
     write({ functionName, args, value }) {
       return contractInstance.write({ functionName, args, value });
     },
+    check({ functionName, args, constraints }) {
+      return contractInstance.check({ functionName, args, constraints });
+    },
     runtimeBalance({ owner, constraints } = {}) {
       return runtimeERC20BalanceOf({
         targetAddress: resolveAddress(owner, accountAddress, 'owner'),
