@@ -5,7 +5,8 @@ import type {
   ContractFunctionReturnType,
   erc20Abi,
 } from 'viem';
-import type { RuntimeConstraint, RuntimeValue } from '../encoding';
+import type { ComposableArgs } from '../contract';
+import type { ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
 
 export type ERC20Abi = typeof erc20Abi;
 
@@ -39,6 +40,15 @@ export interface ERC20TokenInstance {
     functionName: TFunctionName;
     args: TArgs;
   }): Promise<ContractFunctionReturnType<ERC20Abi, 'pure' | 'view', TFunctionName, TArgs>>;
+  write<
+    TFunctionName extends ContractFunctionName<ERC20Abi, 'nonpayable' | 'payable'>,
+    const TArgs extends ContractFunctionArgs<ERC20Abi, 'nonpayable' | 'payable', TFunctionName> &
+      readonly unknown[],
+  >(params: {
+    functionName: TFunctionName;
+    args: ComposableArgs<TArgs>;
+    value?: bigint;
+  }): ComposableCall;
   runtimeBalance(params?: ERC20RuntimeBalanceParams): RuntimeValue;
   runtimeAllowance(params: ERC20RuntimeAllowanceParams): RuntimeValue;
 }

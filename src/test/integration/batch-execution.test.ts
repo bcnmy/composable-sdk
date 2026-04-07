@@ -58,10 +58,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     const usdc = batch.erc20Token(USDC);
 
     batch.add(
-      batch.contract(USDC, erc20Abi).write({
-        functionName: 'transfer',
-        args: [_account.address, usdc.runtimeBalance()],
-      }),
+      usdc.write({ functionName: 'transfer', args: [_account.address, usdc.runtimeBalance()] }),
     );
 
     expect(batch.length).toBe(1);

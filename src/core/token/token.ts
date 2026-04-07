@@ -1,5 +1,6 @@
 import type { Address, Chain, PublicClient, Transport } from 'viem';
 import { erc20Abi } from 'viem';
+import { contract } from '../contract';
 import {
   runtimeERC20AllowanceOf,
   runtimeERC20BalanceOf,
@@ -26,11 +27,16 @@ export function ERC20Token<
   address: Address,
   accountAddress?: Address,
 ): ERC20TokenInstance {
+  const contractInstance = contract(publicClient, address, erc20Abi);
+
   return {
     address,
     abi: erc20Abi,
     read({ functionName, args }) {
       return publicClient.readContract({ abi: erc20Abi, address, functionName, args });
+    },
+    write({ functionName, args, value }) {
+      return contractInstance.write({ functionName, args, value });
     },
     runtimeBalance({ owner, constraints } = {}) {
       return runtimeERC20BalanceOf({
