@@ -212,7 +212,9 @@ describe('ComposableBatch — calls getter', () => {
 
   it('calls reflects added single call', () => {
     const batch = ComposableBatch(publicClient, ACCOUNT);
-    const call = batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] });
+    const call = batch
+      .contract(USDC, erc20Abi)
+      .write({ functionName: 'transfer', args: [WETH, 1n] });
     batch.add(call);
     expect(batch.calls).toHaveLength(1);
     expect(batch.calls[0].functionSig).toBe(call.functionSig);
