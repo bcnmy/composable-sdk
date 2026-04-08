@@ -303,6 +303,167 @@ describe('ERC20Token — runtimeAllowance with constraints', () => {
 // ERC20Token — write
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ERC20Token — check
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — check', () => {
+  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+
+  it('check(balanceOf) returns a ComposableCall with a functionSig', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('check(balanceOf) encodes the correct function selector', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    // keccak256("balanceOf(address)") first 4 bytes = 0x70a08231
+    expect(call.functionSig).toBe('0x70a08231');
+  });
+
+  it('check(allowance) encodes the correct function selector', () => {
+    const call = usdc.check({
+      functionName: 'allowance',
+      args: [UNISWAP_V3_ROUTER, WETH_ADDRESS],
+      constraints: [{ gte: 0n }],
+    });
+    // keccak256("allowance(address,address)") first 4 bytes = 0xdd62ed3e
+    expect(call.functionSig).toBe('0xdd62ed3e');
+  });
+
+  it('check(balanceOf) and check(allowance) produce different functionSigs', () => {
+    const a = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const b = usdc.check({
+      functionName: 'allowance',
+      args: [UNISWAP_V3_ROUTER, WETH_ADDRESS],
+      constraints: [{ gte: 0n }],
+    });
+    expect(a.functionSig).not.toBe(b.functionSig);
+  });
+
+  it('check(balanceOf) outputParams is empty', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    expect(call.outputParams).toHaveLength(0);
+  });
+
+  it('check(balanceOf) inputParams contains a STATIC_CALL param', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam).toBeDefined();
+  });
+
+  it('one constraint is applied to the STATIC_CALL param', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 1_000n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam?.constraints).toHaveLength(1);
+  });
+
+  it('multiple constraints are all applied to the STATIC_CALL param', () => {
+    const call = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 1_000n }, { lte: 1_000_000n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam?.constraints).toHaveLength(2);
+  });
+
+  it('constraints do not affect paramData of the STATIC_CALL param', () => {
+    const a = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 999n }],
+    });
+    const b = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ lte: 1n }],
+    });
+    const staticA = a.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    const staticB = b.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    expect(staticA?.paramData).toBe(staticB?.paramData);
+  });
+
+  it('check(balanceOf) produces different paramData for different addresses', () => {
+    const a = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const b = usdc.check({
+      functionName: 'balanceOf',
+      args: [WETH_ADDRESS],
+      constraints: [{ gte: 0n }],
+    });
+    const staticA = a.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    const staticB = b.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    expect(staticA?.paramData).not.toBe(staticB?.paramData);
+  });
+
+  it('check(balanceOf) is deterministic for the same args', () => {
+    const a = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const b = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    expect(a.functionSig).toBe(b.functionSig);
+    expect(JSON.stringify(a.inputParams)).toBe(JSON.stringify(b.inputParams));
+  });
+
+  it('check on WETH produces different paramData than check on USDC for same owner', () => {
+    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const a = usdc.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const b = weth.check({
+      functionName: 'balanceOf',
+      args: [UNISWAP_V3_ROUTER],
+      constraints: [{ gte: 0n }],
+    });
+    const staticA = a.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    const staticB = b.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    expect(staticA?.paramData).not.toBe(staticB?.paramData);
+  });
+});
+
 describe('ERC20Token — write', () => {
   const usdc = ERC20Token(publicClient, USDC_ADDRESS);
 

@@ -244,6 +244,126 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// contract — check
+// ---------------------------------------------------------------------------
+
+describe('contract — check (ERC20 on Base Sepolia)', () => {
+  const token = contract(publicClient, USDC, ERC20_ABI);
+
+  it('check(balanceOf) returns a ComposableCall with a functionSig', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 0n }],
+    });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('check(balanceOf) encodes the correct function selector', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 0n }],
+    });
+    // keccak256("balanceOf(address)") first 4 bytes = 0x70a08231
+    expect(call.functionSig).toBe('0x70a08231');
+  });
+
+  it('check(totalSupply) encodes the correct function selector', () => {
+    const call = token.check({ functionName: 'totalSupply', args: [], constraints: [{ gte: 1n }] });
+    // keccak256("totalSupply()") first 4 bytes = 0x18160ddd
+    expect(call.functionSig).toBe('0x18160ddd');
+  });
+
+  it('check(balanceOf) and check(totalSupply) produce different functionSigs', () => {
+    const a = token.check({ functionName: 'balanceOf', args: [WETH], constraints: [{ gte: 0n }] });
+    const b = token.check({ functionName: 'totalSupply', args: [], constraints: [{ gte: 0n }] });
+    expect(a.functionSig).not.toBe(b.functionSig);
+  });
+
+  it('check(balanceOf) outputParams is empty', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 0n }],
+    });
+    expect(call.outputParams).toHaveLength(0);
+  });
+
+  it('check(balanceOf) inputParams contains a STATIC_CALL param', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 0n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam).toBeDefined();
+  });
+
+  it('one constraint is applied to the STATIC_CALL param', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 1_000n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam?.constraints).toHaveLength(1);
+  });
+
+  it('multiple constraints are all applied to the STATIC_CALL param', () => {
+    const call = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 1_000n }, { lte: 1_000_000n }],
+    });
+    const staticCallParam = call.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticCallParam?.constraints).toHaveLength(2);
+  });
+
+  it('constraints do not affect paramData of the STATIC_CALL param', () => {
+    const withConstraint = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ gte: 999n }],
+    });
+    const withOtherConstraint = token.check({
+      functionName: 'balanceOf',
+      args: [WETH],
+      constraints: [{ lte: 1n }],
+    });
+    const staticA = withConstraint.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    const staticB = withOtherConstraint.inputParams.find(
+      (p) => p.fetcherType === InputParamFetcherType.STATIC_CALL,
+    );
+    expect(staticA?.paramData).toBe(staticB?.paramData);
+  });
+
+  it('check(balanceOf) produces different paramData for different addresses', () => {
+    const a = token.check({ functionName: 'balanceOf', args: [USDC], constraints: [{ gte: 0n }] });
+    const b = token.check({ functionName: 'balanceOf', args: [WETH], constraints: [{ gte: 0n }] });
+    const staticA = a.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    const staticB = b.inputParams.find((p) => p.fetcherType === InputParamFetcherType.STATIC_CALL);
+    expect(staticA?.paramData).not.toBe(staticB?.paramData);
+  });
+
+  it('check(balanceOf) is deterministic for the same args', () => {
+    const a = token.check({ functionName: 'balanceOf', args: [WETH], constraints: [{ gte: 0n }] });
+    const b = token.check({ functionName: 'balanceOf', args: [WETH], constraints: [{ gte: 0n }] });
+    expect(a.functionSig).toBe(b.functionSig);
+    expect(JSON.stringify(a.inputParams)).toBe(JSON.stringify(b.inputParams));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // contract — runtimeValue
 // ---------------------------------------------------------------------------
 
