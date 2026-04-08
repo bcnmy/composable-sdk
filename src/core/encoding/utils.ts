@@ -2,7 +2,9 @@ import { type Address, type Hex, isAddress, isHex, padHex, toHex } from 'viem';
 import type { AnyData } from '../types';
 import type { FunctionContext } from './types';
 
-export const toBytes32 = (value: bigint | boolean | Address | Hex | number): Hex => {
+export type Bytes32SupportedType = bigint | boolean | Address | Hex | number;
+
+export const toBytes32 = (value: Bytes32SupportedType): Hex => {
   if (typeof value === 'boolean') {
     return padHex(toHex(value ? 1n : 0n), { size: 32 });
   }
@@ -16,10 +18,17 @@ export const toBytes32 = (value: bigint | boolean | Address | Hex | number): Hex
   }
 
   if (isAddress(value)) {
-    return padHex(value, { size: 32 });
+    return padHex(value as Hex, { size: 32 });
   }
 
   if (isHex(value)) {
+    // Hex value should be 32 bytes or lesser
+    const isValid = (value as Hex).startsWith('0x') && (value as Hex).length <= 66;
+
+    if (!isValid) {
+      throw new Error('Hex value exceeds 32 bytes');
+    }
+
     return padHex(value, { size: 32 });
   }
 
