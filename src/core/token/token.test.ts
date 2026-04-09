@@ -320,27 +320,26 @@ describe('ERC20Token — check', () => {
     expect(call.functionSig.length).toBeGreaterThan(0);
   });
 
-  it('check(balanceOf) encodes the correct function selector', () => {
+  it('check(balanceOf) uses the predicate dummy functionSig', () => {
     const call = usdc.check({
       functionName: 'balanceOf',
       args: [UNISWAP_V3_ROUTER],
       constraints: [{ gte: 0n }],
     });
-    // keccak256("balanceOf(address)") first 4 bytes = 0x70a08231
-    expect(call.functionSig).toBe('0x70a08231');
+    // check() is a predicate — the calldata never executes, so functionSig is always the sentinel
+    expect(call.functionSig).toBe('0x11111111');
   });
 
-  it('check(allowance) encodes the correct function selector', () => {
+  it('check(allowance) uses the predicate dummy functionSig', () => {
     const call = usdc.check({
       functionName: 'allowance',
       args: [UNISWAP_V3_ROUTER, WETH_ADDRESS],
       constraints: [{ gte: 0n }],
     });
-    // keccak256("allowance(address,address)") first 4 bytes = 0xdd62ed3e
-    expect(call.functionSig).toBe('0xdd62ed3e');
+    expect(call.functionSig).toBe('0x11111111');
   });
 
-  it('check(balanceOf) and check(allowance) produce different functionSigs', () => {
+  it('check() always produces the same predicate functionSig regardless of function called', () => {
     const a = usdc.check({
       functionName: 'balanceOf',
       args: [UNISWAP_V3_ROUTER],
@@ -351,7 +350,7 @@ describe('ERC20Token — check', () => {
       args: [UNISWAP_V3_ROUTER, WETH_ADDRESS],
       constraints: [{ gte: 0n }],
     });
-    expect(a.functionSig).not.toBe(b.functionSig);
+    expect(a.functionSig).toBe(b.functionSig);
   });
 
   it('check(balanceOf) outputParams is empty', () => {

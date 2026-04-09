@@ -260,26 +260,25 @@ describe('contract — check (ERC20 on Base Sepolia)', () => {
     expect(call.functionSig.length).toBeGreaterThan(0);
   });
 
-  it('check(balanceOf) encodes the correct function selector', () => {
+  it('check(balanceOf) uses the predicate dummy functionSig', () => {
     const call = token.check({
       functionName: 'balanceOf',
       args: [WETH],
       constraints: [{ gte: 0n }],
     });
-    // keccak256("balanceOf(address)") first 4 bytes = 0x70a08231
-    expect(call.functionSig).toBe('0x70a08231');
+    // check() is a predicate — the calldata never executes, so functionSig is always the sentinel
+    expect(call.functionSig).toBe('0x11111111');
   });
 
-  it('check(totalSupply) encodes the correct function selector', () => {
+  it('check(totalSupply) uses the predicate dummy functionSig', () => {
     const call = token.check({ functionName: 'totalSupply', args: [], constraints: [{ gte: 1n }] });
-    // keccak256("totalSupply()") first 4 bytes = 0x18160ddd
-    expect(call.functionSig).toBe('0x18160ddd');
+    expect(call.functionSig).toBe('0x11111111');
   });
 
-  it('check(balanceOf) and check(totalSupply) produce different functionSigs', () => {
+  it('check() always produces the same predicate functionSig regardless of function called', () => {
     const a = token.check({ functionName: 'balanceOf', args: [WETH], constraints: [{ gte: 0n }] });
     const b = token.check({ functionName: 'totalSupply', args: [], constraints: [{ gte: 0n }] });
-    expect(a.functionSig).not.toBe(b.functionSig);
+    expect(a.functionSig).toBe(b.functionSig);
   });
 
   it('check(balanceOf) outputParams is empty', () => {
