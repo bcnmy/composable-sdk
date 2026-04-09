@@ -14,6 +14,7 @@ import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from './constants';
 import type {
   CheckStorageParams,
   GetStorageKeyParams,
+  ReadStorageParams,
   RuntimeValueStorageParams,
   StorageInstance,
   WriteStorageParams,
@@ -108,6 +109,23 @@ export function storage<
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
       const manager = NamespaceStorageKeyManager.getInstance();
       return manager.getDefaultStorageSlotKey(resolvedAccountAddress, resolvedCallerAddress);
+    },
+
+    async read({
+      storageKey,
+      accountAddress: accountAddressOverride,
+      callerAddress: callerAddressOverride,
+    }: ReadStorageParams = {}) {
+      const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
+      const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
+
+      const slot = await getStorageSlot(resolvedAccountAddress, resolvedCallerAddress, storageKey);
+      const namespace = getStorageNamespace(resolvedAccountAddress, resolvedCallerAddress);
+
+      return contractInstance.read({
+        functionName: 'readStorage',
+        args: [namespace, slot],
+      }) as Promise<`0x${string}`>;
     },
 
     async write({

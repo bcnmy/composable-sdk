@@ -1,6 +1,7 @@
 import type { Address, Chain, PublicClient, Transport } from 'viem';
 import { contract } from '../contract';
 import { type ComposableCall, encodeExecuteComposable } from '../encoding';
+import { storage } from '../storage';
 import { ERC20Token, NativeToken } from '../token';
 import type { ComposableBatchInstance } from './types';
 
@@ -27,6 +28,9 @@ export function ComposableBatch<
     },
     contract(address, abi) {
       return contract(publicClient, address, abi);
+    },
+    storage() {
+      return storage(publicClient, accountAddress);
     },
     get calls() {
       return [...calls];

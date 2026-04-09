@@ -1,4 +1,4 @@
-import type { Address } from 'viem';
+import type { Address, Hex } from 'viem';
 import type { ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
 import type { Bytes32SupportedType } from '../encoding/utils';
 
@@ -23,6 +23,12 @@ export interface CheckStorageParams {
   callerAddress?: Address;
 }
 
+export interface ReadStorageParams {
+  storageKey?: bigint;
+  accountAddress?: Address;
+  callerAddress?: Address;
+}
+
 export interface GetStorageKeyParams {
   accountAddress?: Address;
   callerAddress?: Address;
@@ -31,6 +37,7 @@ export interface GetStorageKeyParams {
 export interface StorageInstance {
   readonly accountAddress: Address;
   getStorageKey(params?: GetStorageKeyParams): Promise<bigint>;
+  read(params?: ReadStorageParams): Promise<Hex>;
   write(params: WriteStorageParams): Promise<ComposableCall>;
   runtimeValue(params?: RuntimeValueStorageParams): Promise<RuntimeValue>;
   check(params: CheckStorageParams): Promise<ComposableCall>;

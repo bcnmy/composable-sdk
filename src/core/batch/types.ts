@@ -1,6 +1,7 @@
 import type { Address, Chain, Hex, PublicClient, Transport } from 'viem';
 import type { ContractInstance } from '../contract';
 import type { ComposableCall } from '../encoding';
+import type { StorageInstance } from '../storage';
 import type { ERC20TokenInstance, NativeTokenInstance } from '../token';
 
 export interface ComposableBatchInstance<
@@ -16,6 +17,7 @@ export interface ComposableBatchInstance<
     address: Address,
     abi: TAbi,
   ): ContractInstance<TAbi>;
+  storage(): StorageInstance;
   readonly calls: ComposableCall[];
   add(call: ComposableCall | ComposableCall[]): void;
   clear(): void;
