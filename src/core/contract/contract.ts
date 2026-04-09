@@ -23,7 +23,7 @@ import { getFunctionContextFromAbi } from '../encoding/runtimeAbiEncoding';
 import type { AnyData } from '../types';
 import type { ContractInstance } from './types';
 
-export function contract<
+export function createContract<
   const TAbi extends Abi | readonly unknown[],
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,

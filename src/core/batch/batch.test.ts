@@ -2,7 +2,7 @@ import { erc20Abi, getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType } from '../encoding';
-import { ComposableBatch } from './batch';
+import { createComposableBatch } from './batch';
 
 const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
 const USDC = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
@@ -24,7 +24,7 @@ const UNISWAP_V3_FACTORY_ABI = [
 // ---------------------------------------------------------------------------
 
 describe('ComposableBatch — construction', () => {
-  const batch = ComposableBatch(publicClient, ACCOUNT);
+  const batch = createComposableBatch(publicClient, ACCOUNT);
 
   it('stores publicClient', () => {
     expect(batch.publicClient).toBe(publicClient);
@@ -40,7 +40,7 @@ describe('ComposableBatch — construction', () => {
 // ---------------------------------------------------------------------------
 
 describe('ComposableBatch — erc20Token', () => {
-  const batch = ComposableBatch(publicClient, ACCOUNT);
+  const batch = createComposableBatch(publicClient, ACCOUNT);
   const token = batch.erc20Token(USDC);
 
   it('returns an ERC20TokenInstance with the correct address', () => {
@@ -93,7 +93,7 @@ describe('ComposableBatch — erc20Token', () => {
 // ---------------------------------------------------------------------------
 
 describe('ComposableBatch — nativeToken', () => {
-  const batch = ComposableBatch(publicClient, ACCOUNT);
+  const batch = createComposableBatch(publicClient, ACCOUNT);
   const native = batch.nativeToken();
 
   it('balance uses accountAddress when address is omitted', async () => {
@@ -126,12 +126,12 @@ describe('ComposableBatch — nativeToken', () => {
 
 describe('ComposableBatch — add, length, clear, toCalldata', () => {
   it('length is 0 on a fresh batch', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     expect(batch.length).toBe(0);
   });
 
   it('add(single call) increments length by 1', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const call = batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1n] });
@@ -140,7 +140,7 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('add(array of calls) increments length by the array size', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
     const calls = [
       token.write({ functionName: 'transfer', args: [WETH, 1n] }),
@@ -151,7 +151,7 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('add() can be called multiple times and accumulates calls', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
     batch.add(token.write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.add(token.write({ functionName: 'approve', args: [WETH, 1n] }));
@@ -159,7 +159,7 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('clear() resets length to 0', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const call = batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1n] });
@@ -169,7 +169,7 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('toCalldata() returns a hex string', async () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const call = batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1n] });
@@ -179,7 +179,7 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('toCalldata() with multiple calls returns a hex string', async () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
     batch.add(token.write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.add(token.write({ functionName: 'approve', args: [WETH, 1_000_000n] }));
@@ -188,8 +188,8 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
   });
 
   it('toCalldata() produces different output for different calls', async () => {
-    const batchA = ComposableBatch(publicClient, ACCOUNT);
-    const batchB = ComposableBatch(publicClient, ACCOUNT);
+    const batchA = createComposableBatch(publicClient, ACCOUNT);
+    const batchB = createComposableBatch(publicClient, ACCOUNT);
     const token = batchA.contract(USDC, erc20Abi);
     batchA.add(token.write({ functionName: 'transfer', args: [WETH, 1n] }));
     batchB.add(
@@ -206,12 +206,12 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
 
 describe('ComposableBatch — calls getter', () => {
   it('calls is empty on a fresh batch', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     expect(batch.calls).toHaveLength(0);
   });
 
   it('calls reflects added single call', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const call = batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1n] });
@@ -221,7 +221,7 @@ describe('ComposableBatch — calls getter', () => {
   });
 
   it('calls reflects added array of calls', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
     batch.add([
       token.write({ functionName: 'transfer', args: [WETH, 1n] }),
@@ -231,14 +231,14 @@ describe('ComposableBatch — calls getter', () => {
   });
 
   it('calls is empty after clear()', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.clear();
     expect(batch.calls).toHaveLength(0);
   });
 
   it('calls returns a copy — mutating it does not affect the batch', () => {
-    const batch = ComposableBatch(publicClient, ACCOUNT);
+    const batch = createComposableBatch(publicClient, ACCOUNT);
     batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
     const snapshot = batch.calls;
     snapshot.pop();
@@ -251,7 +251,7 @@ describe('ComposableBatch — calls getter', () => {
 // ---------------------------------------------------------------------------
 
 describe('ComposableBatch — contract', () => {
-  const batch = ComposableBatch(publicClient, ACCOUNT);
+  const batch = createComposableBatch(publicClient, ACCOUNT);
   const factory = batch.contract(UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
 
   it('returns a ContractInstance with the correct address', () => {

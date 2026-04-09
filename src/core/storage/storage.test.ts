@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType, InputParamType } from '../encoding';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from './constants';
-import { getStorageNamespace, getStorageSlot, storage } from './storage';
+import { createStorage, getStorageNamespace, getStorageSlot } from './storage';
 
 // Arbitrary stable addresses used as account / caller throughout tests
 const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'); // vitalik.eth
@@ -86,7 +86,7 @@ describe('getStorageSlot', () => {
 
 describe('storage — instance construction', () => {
   it('stores the correct accountAddress', () => {
-    const instance = storage(publicClient, ACCOUNT);
+    const instance = createStorage(publicClient, ACCOUNT);
     expect(instance.accountAddress).toBe(ACCOUNT);
   });
 });
@@ -96,7 +96,7 @@ describe('storage — instance construction', () => {
 // ---------------------------------------------------------------------------
 
 describe('storage — getStorageKey', () => {
-  const instance = storage(publicClient, ACCOUNT);
+  const instance = createStorage(publicClient, ACCOUNT);
 
   it('returns a bigint', async () => {
     const key = await instance.getStorageKey();
@@ -120,7 +120,7 @@ describe('storage — getStorageKey', () => {
 // ---------------------------------------------------------------------------
 
 describe('storage — write', () => {
-  const instance = storage(publicClient, ACCOUNT);
+  const instance = createStorage(publicClient, ACCOUNT);
 
   it('returns a ComposableCall with a functionSig', async () => {
     const call = await instance.write({ value: 12345n, storageKey: 1n });
@@ -205,7 +205,7 @@ describe('storage — write', () => {
 // Live read of an initialized slot is covered by the integration test.
 
 describe('storage — read', () => {
-  const instance = storage(publicClient, ACCOUNT);
+  const instance = createStorage(publicClient, ACCOUNT);
 
   it('rejects for an uninitialized slot', async () => {
     // The contract reverts when the slot has no data written to it yet
@@ -218,7 +218,7 @@ describe('storage — read', () => {
 // ---------------------------------------------------------------------------
 
 describe('storage — runtimeValue', () => {
-  const instance = storage(publicClient, ACCOUNT);
+  const instance = createStorage(publicClient, ACCOUNT);
 
   it('returns a RuntimeValue with isRuntime=true', async () => {
     const rv = await instance.runtimeValue({ storageKey: 1n });
@@ -293,7 +293,7 @@ describe('storage — runtimeValue', () => {
 // ---------------------------------------------------------------------------
 
 describe('storage — check', () => {
-  const instance = storage(publicClient, ACCOUNT);
+  const instance = createStorage(publicClient, ACCOUNT);
 
   it('returns a ComposableCall with a functionSig', async () => {
     const call = await instance.check({ constraints: [{ gte: 0n }], storageKey: 1n });

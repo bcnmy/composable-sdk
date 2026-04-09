@@ -1,11 +1,11 @@
 import type { Address, Chain, PublicClient, Transport } from 'viem';
-import { contract } from '../contract';
+import { createContract } from '../contract';
 import { type ComposableCall, encodeExecuteComposable } from '../encoding';
-import { storage } from '../storage';
-import { ERC20Token, NativeToken } from '../token';
+import { createStorage } from '../storage';
+import { createERC20Token, createNativeToken } from '../token';
 import type { ComposableBatchInstance } from './types';
 
-export function ComposableBatch<
+export function createComposableBatch<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
 >(
@@ -21,16 +21,16 @@ export function ComposableBatch<
       return calls.length;
     },
     erc20Token(tokenAddress) {
-      return ERC20Token(publicClient, tokenAddress, accountAddress);
+      return createERC20Token(publicClient, tokenAddress, accountAddress);
     },
     nativeToken() {
-      return NativeToken(publicClient, accountAddress);
+      return createNativeToken(publicClient, accountAddress);
     },
     contract(address, abi) {
-      return contract(publicClient, address, abi);
+      return createContract(publicClient, address, abi);
     },
     storage() {
-      return storage(publicClient, accountAddress);
+      return createStorage(publicClient, accountAddress);
     },
     get calls() {
       return [...calls];

@@ -2,7 +2,7 @@ import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType } from '../encoding';
-import { ERC20Token, NativeToken } from './token';
+import { createERC20Token, createNativeToken } from './token';
 
 // Well-known Base Sepolia token addresses
 const USDC_ADDRESS = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
@@ -19,7 +19,7 @@ const WETH_CONTRACT = WETH_ADDRESS;
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — USDC (Base Sepolia)', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('stores the correct address', () => {
     expect(usdc.address).toBe(USDC_ADDRESS);
@@ -60,7 +60,7 @@ describe('ERC20Token — USDC (Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — WETH (Base Sepolia)', () => {
-  const weth = ERC20Token(publicClient, WETH_ADDRESS);
+  const weth = createERC20Token(publicClient, WETH_ADDRESS);
 
   it('read(symbol) returns "WETH"', async () => {
     const symbol = await weth.read({ functionName: 'symbol', args: [] });
@@ -83,7 +83,7 @@ describe('ERC20Token — WETH (Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('NativeToken (Base Sepolia)', () => {
-  const native = NativeToken(publicClient);
+  const native = createNativeToken(publicClient);
 
   it('balance returns a bigint', async () => {
     const balance = await native.balance({ address: WETH_CONTRACT });
@@ -126,7 +126,7 @@ describe('NativeToken (Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — runtimeBalance (USDC)', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('runtimeBalance returns a RuntimeValue with isRuntime=true', () => {
     const rv = usdc.runtimeBalance({ owner: UNISWAP_V3_ROUTER });
@@ -161,7 +161,7 @@ describe('ERC20Token — runtimeBalance (USDC)', () => {
   });
 
   it('runtimeBalance on WETH uses WETH as token address in paramData', () => {
-    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const weth = createERC20Token(publicClient, WETH_ADDRESS);
     const rv = weth.runtimeBalance({ owner: UNISWAP_V3_ROUTER });
     expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
       WETH_ADDRESS.slice(2).toLowerCase(),
@@ -174,7 +174,7 @@ describe('ERC20Token — runtimeBalance (USDC)', () => {
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — runtimeAllowance (USDC)', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('runtimeAllowance returns a RuntimeValue with isRuntime=true', () => {
     const rv = usdc.runtimeAllowance({ spender: UNISWAP_V3_ROUTER, owner: WETH_ADDRESS });
@@ -207,7 +207,7 @@ describe('ERC20Token — runtimeAllowance (USDC)', () => {
   });
 
   it('runtimeAllowance on WETH uses WETH as token address in paramData', () => {
-    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const weth = createERC20Token(publicClient, WETH_ADDRESS);
     const rv = weth.runtimeAllowance({ spender: USDC_ADDRESS, owner: UNISWAP_V3_ROUTER });
     expect(rv.inputParams[0].paramData.toLowerCase()).toContain(
       WETH_ADDRESS.slice(2).toLowerCase(),
@@ -220,7 +220,7 @@ describe('ERC20Token — runtimeAllowance (USDC)', () => {
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — runtimeBalance with constraints', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('gte constraint adds one constraint to inputParams[0]', () => {
     const rv = usdc.runtimeBalance({
@@ -257,14 +257,14 @@ describe('ERC20Token — runtimeBalance with constraints', () => {
   });
 
   it('uses accountAddress as owner when owner is omitted', () => {
-    const usdcWithAccount = ERC20Token(publicClient, USDC_ADDRESS, UNISWAP_V3_ROUTER);
+    const usdcWithAccount = createERC20Token(publicClient, USDC_ADDRESS, UNISWAP_V3_ROUTER);
     const rv = usdcWithAccount.runtimeBalance({ constraints: [{ gte: 1n }] });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
   });
 });
 
 describe('ERC20Token — runtimeAllowance with constraints', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('gte constraint adds one constraint', () => {
     const rv = usdc.runtimeAllowance({
@@ -290,7 +290,7 @@ describe('ERC20Token — runtimeAllowance with constraints', () => {
   });
 
   it('uses accountAddress as owner when owner is omitted', () => {
-    const usdcWithAccount = ERC20Token(publicClient, USDC_ADDRESS, WETH_ADDRESS);
+    const usdcWithAccount = createERC20Token(publicClient, USDC_ADDRESS, WETH_ADDRESS);
     const rv = usdcWithAccount.runtimeAllowance({
       spender: UNISWAP_V3_ROUTER,
       constraints: [{ gte: 1n }],
@@ -308,7 +308,7 @@ describe('ERC20Token — runtimeAllowance with constraints', () => {
 // ---------------------------------------------------------------------------
 
 describe('ERC20Token — check', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('check(balanceOf) returns a ComposableCall with a functionSig', () => {
     const call = usdc.check({
@@ -447,7 +447,7 @@ describe('ERC20Token — check', () => {
   });
 
   it('check on WETH produces different paramData than check on USDC for same owner', () => {
-    const weth = ERC20Token(publicClient, WETH_ADDRESS);
+    const weth = createERC20Token(publicClient, WETH_ADDRESS);
     const a = usdc.check({
       functionName: 'balanceOf',
       args: [UNISWAP_V3_ROUTER],
@@ -465,7 +465,7 @@ describe('ERC20Token — check', () => {
 });
 
 describe('ERC20Token — write', () => {
-  const usdc = ERC20Token(publicClient, USDC_ADDRESS);
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
   it('write(transfer) returns a ComposableCall object', () => {
     const call = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
@@ -517,7 +517,7 @@ describe('ERC20Token — write', () => {
 });
 
 describe('NativeToken — runtimeBalance with constraints', () => {
-  const native = NativeToken(publicClient);
+  const native = createNativeToken(publicClient);
 
   it('gte constraint adds one constraint', () => {
     const rv = native.runtimeBalance({ constraints: [{ gte: 1n }], address: WETH_CONTRACT });
@@ -538,7 +538,7 @@ describe('NativeToken — runtimeBalance with constraints', () => {
   });
 
   it('uses accountAddress as target when address is omitted', () => {
-    const nativeWithAccount = NativeToken(publicClient, WETH_CONTRACT);
+    const nativeWithAccount = createNativeToken(publicClient, WETH_CONTRACT);
     const rv = nativeWithAccount.runtimeBalance({ constraints: [{ gte: 1n }] });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
   });

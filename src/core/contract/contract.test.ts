@@ -2,7 +2,7 @@ import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType, InputParamType } from '../encoding';
-import { contract } from './contract';
+import { createContract } from './contract';
 
 // Uniswap V3 Factory on Base Sepolia
 const UNISWAP_V3_FACTORY = getAddress('0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24');
@@ -94,7 +94,7 @@ const ERC20_WRITE_ABI = ERC20_ABI;
 // ---------------------------------------------------------------------------
 
 describe('contract — Uniswap V3 Factory (Base Sepolia)', () => {
-  const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
+  const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
 
   it('stores the correct address and abi', () => {
     expect(factory.address).toBe(UNISWAP_V3_FACTORY);
@@ -135,7 +135,7 @@ describe('contract — Uniswap V3 Factory (Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('contract — write (ERC20 on Base Sepolia)', () => {
-  const token = contract(publicClient, USDC, ERC20_WRITE_ABI);
+  const token = createContract(publicClient, USDC, ERC20_WRITE_ABI);
   const SPENDER = WETH; // arbitrary recipient/spender address
 
   it('write(transfer) returns a ComposableCall', () => {
@@ -220,7 +220,7 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
   });
 
   it('write(transfer) accepts a RuntimeValue for the recipient arg', () => {
-    const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
+    const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
     const runtimeRecipient = factory.runtimeValue({ functionName: 'owner', args: [] });
     const call = token.write({ functionName: 'transfer', args: [runtimeRecipient, 1_000_000n] });
     expect(call.functionSig).toBe('0xa9059cbb');
@@ -235,7 +235,7 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
   });
 
   it('write(approve) accepts RuntimeValues for both args', () => {
-    const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
+    const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
     const runtimeSpender = factory.runtimeValue({ functionName: 'owner', args: [] });
     const runtimeAmount = token.runtimeValue({ functionName: 'totalSupply', args: [] });
     const call = token.write({ functionName: 'approve', args: [runtimeSpender, runtimeAmount] });
@@ -248,7 +248,7 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('contract — check (ERC20 on Base Sepolia)', () => {
-  const token = contract(publicClient, USDC, ERC20_ABI);
+  const token = createContract(publicClient, USDC, ERC20_ABI);
 
   it('check(balanceOf) returns a ComposableCall with a functionSig', () => {
     const call = token.check({
@@ -368,7 +368,7 @@ describe('contract — check (ERC20 on Base Sepolia)', () => {
 // ---------------------------------------------------------------------------
 
 describe('contract — runtimeValue (Uniswap V3 Factory)', () => {
-  const factory = contract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
+  const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
 
   it('runtimeValue returns a RuntimeValue with isRuntime=true', () => {
     const rv = factory.runtimeValue({ functionName: 'owner', args: [] });

@@ -8,7 +8,7 @@ import {
 import { erc20Abi, getAddress, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
-import { ComposableBatch } from '../../core/batch';
+import { createComposableBatch } from '../../core/batch';
 import { account, publicClient, USDC_ADDRESS, walletClient } from '../utils';
 
 if (!account || !walletClient) throw new Error('PRIVATE_KEY is not set in environment');
@@ -65,7 +65,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     });
 
     // 3. Build composable batch with pre-check → sweep → post-check
-    const batch = ComposableBatch(publicClient, scaAddress);
+    const batch = createComposableBatch(publicClient, scaAddress);
     const usdc = batch.erc20Token(USDC);
 
     batch.add([
@@ -108,7 +108,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     const { scaAddress, meeClient } = await initNexus();
 
     // 2. Build composable batch with a pre-check that will intentionally fail
-    const batch = ComposableBatch(publicClient, scaAddress);
+    const batch = createComposableBatch(publicClient, scaAddress);
     const usdc = batch.erc20Token(USDC);
 
     batch.add([
@@ -141,7 +141,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     const { scaAddress, meeClient } = await initNexus();
 
     // 2. Build composable batch with a post-check that will intentionally fail
-    const batch = ComposableBatch(publicClient, scaAddress);
+    const batch = createComposableBatch(publicClient, scaAddress);
     const usdc = batch.erc20Token(USDC);
 
     batch.add([
@@ -187,7 +187,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     });
 
     // 3. Build composable batch: write storage → check storage → partial transfer → sweep remainder
-    const batch = ComposableBatch(publicClient, scaAddress);
+    const batch = createComposableBatch(publicClient, scaAddress);
     const usdc = batch.erc20Token(USDC);
     const storage = batch.storage();
 

@@ -7,7 +7,7 @@ import {
   type PublicClient,
   type Transport,
 } from 'viem';
-import { contract } from '../contract';
+import { createContract } from '../contract';
 import { toBytes32 } from '../encoding/utils';
 import { NAMESPACE_STORAGE_ABI } from './abi';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from './constants';
@@ -88,11 +88,11 @@ export const getStorageSlot = async (
 // StorageInstance factory
 // ---------------------------------------------------------------------------
 
-export function storage<
+export function createStorage<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
 >(publicClient: PublicClient<TTransport, TChain>, accountAddress: Address): StorageInstance {
-  const contractInstance = contract(
+  const contractInstance = createContract(
     publicClient,
     NAMESPACE_STORAGE_CONTRACT_ADDRESS,
     NAMESPACE_STORAGE_ABI,

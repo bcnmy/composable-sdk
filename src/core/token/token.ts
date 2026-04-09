@@ -1,6 +1,6 @@
 import type { Address, Chain, PublicClient, Transport } from 'viem';
 import { erc20Abi } from 'viem';
-import { contract } from '../contract';
+import { createContract } from '../contract';
 import {
   runtimeERC20AllowanceOf,
   runtimeERC20BalanceOf,
@@ -19,7 +19,7 @@ function resolveAddress(
   return resolved;
 }
 
-export function ERC20Token<
+export function createERC20Token<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
 >(
@@ -27,7 +27,7 @@ export function ERC20Token<
   address: Address,
   accountAddress?: Address,
 ): ERC20TokenInstance {
-  const contractInstance = contract(publicClient, address, erc20Abi);
+  const contractInstance = createContract(publicClient, address, erc20Abi);
 
   return {
     address,
@@ -59,7 +59,7 @@ export function ERC20Token<
   };
 }
 
-export function NativeToken<
+export function createNativeToken<
   TTransport extends Transport = Transport,
   TChain extends Chain | undefined = Chain | undefined,
 >(publicClient: PublicClient<TTransport, TChain>, accountAddress?: Address): NativeTokenInstance {
