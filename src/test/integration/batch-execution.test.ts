@@ -1,15 +1,9 @@
-import {
-  createMeeClient,
-  getMEEVersion,
-  MEEVersion,
-  toBytes32,
-  toMultichainNexusAccount,
-} from '@biconomy/abstractjs';
-import { erc20Abi, getAddress, http } from 'viem';
+import { toBytes32 } from '@biconomy/abstractjs';
+import { erc20Abi, getAddress, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
 import { createComposableBatch } from '../../core/batch';
-import { account, publicClient, USDC_ADDRESS, walletClient } from '../utils';
+import { account, initNexus, publicClient, USDC_ADDRESS, walletClient } from '../utils';
 
 if (!account || !walletClient) throw new Error('PRIVATE_KEY is not set in environment');
 
@@ -18,29 +12,7 @@ const _account = account;
 const _walletClient = walletClient;
 
 const USDC = getAddress(USDC_ADDRESS);
-const FUND_AMOUNT = 1_000_000n; // 1 mock USDC (6 decimals)
-
-// ---------------------------------------------------------------------------
-// Shared helper — init Nexus SCA on Base Sepolia
-// ---------------------------------------------------------------------------
-
-async function initNexus() {
-  const nexusAccount = await toMultichainNexusAccount({
-    signer: _account,
-    chainConfigurations: [
-      {
-        chain: baseSepolia,
-        transport: http(),
-        version: getMEEVersion(MEEVersion.V2_2_1),
-      },
-    ],
-  });
-
-  const scaAddress = nexusAccount.addressOn(baseSepolia.id, true);
-  const meeClient = await createMeeClient({ account: nexusAccount });
-
-  return { nexusAccount, scaAddress, meeClient };
-}
+const FUND_AMOUNT = parseUnits('1', 6); // 1 mock USDC
 
 // ---------------------------------------------------------------------------
 // End-to-end: Biconomy abstractjs — fund SCA + composable sweep back to EOA

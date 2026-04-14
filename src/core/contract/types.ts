@@ -8,11 +8,25 @@ import type {
 import type { ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
 
 /**
- * Wraps each element of an ABI args tuple to also accept a RuntimeValue.
- * Allows mixing concrete values with runtime-resolved values in a single call.
+ * Recursively allows RuntimeValue at any depth — inside arrays, struct fields, or at the top level.
+ * This mirrors the encoding layer, which already handles RuntimeValue at any nesting level.
+ *
+ * - Primitive (bigint, string, boolean, …): T | RuntimeValue
+ * - Array:  (DeepComposable<Element> | RuntimeValue)[] | RuntimeValue
+ * - Object: { [K]: DeepComposable<V> } | RuntimeValue
+ */
+type DeepComposable<T> = T extends readonly (infer U)[]
+  ? readonly (DeepComposable<U> | RuntimeValue)[] | RuntimeValue
+  : T extends object
+    ? { [K in keyof T]: DeepComposable<T[K]> } | RuntimeValue
+    : T | RuntimeValue;
+
+/**
+ * Maps each top-level arg in an ABI args tuple to its deeply-composable form,
+ * allowing RuntimeValue at any nesting level within each argument.
  */
 export type ComposableArgs<T extends readonly unknown[]> = {
-  [K in keyof T]: T[K] | RuntimeValue;
+  [K in keyof T]: DeepComposable<T[K]>;
 };
 
 export interface ContractInstance<TAbi extends Abi | readonly unknown[]> {
