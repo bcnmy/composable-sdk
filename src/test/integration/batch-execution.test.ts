@@ -1,17 +1,15 @@
 import { toBytes32 } from '@biconomy/abstractjs';
-import { erc20Abi, getAddress, parseUnits } from 'viem';
+import { parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
 import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient, USDC_ADDRESS, walletClient } from '../utils';
+import { account, initNexus, publicClient } from '../utils';
+import { fundWithUsdc, USDC } from './helpers';
 
-if (!account || !walletClient) throw new Error('PRIVATE_KEY is not set in environment');
+if (!account) throw new Error('PRIVATE_KEY is not set in environment');
 
-// Narrowed references — the throw above guarantees these are defined
 const _account = account;
-const _walletClient = walletClient;
 
-const USDC = getAddress(USDC_ADDRESS);
 const FUND_AMOUNT = parseUnits('1', 6); // 1 mock USDC
 
 // ---------------------------------------------------------------------------
@@ -23,18 +21,8 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     // 1. Init Nexus SCA on Base Sepolia and resolve its address + MEE client
     const { scaAddress, meeClient } = await initNexus();
 
-    // 2. Fund SCA: EOA transfers mock USDC to the SCA and waits for 2 confirmations
-    const fundTxHash = await _walletClient.writeContract({
-      abi: erc20Abi,
-      address: USDC,
-      functionName: 'transfer',
-      args: [scaAddress, FUND_AMOUNT],
-    });
-
-    await publicClient.waitForTransactionReceipt({
-      hash: fundTxHash,
-      confirmations: 2,
-    });
+    // 2. Fund SCA: EOA transfers mock USDC to the SCA
+    await fundWithUsdc(scaAddress, FUND_AMOUNT);
 
     // 3. Build composable batch with pre-check → sweep → post-check
     const batch = createComposableBatch(publicClient, scaAddress);
@@ -145,18 +133,8 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     // 1. Init Nexus SCA on Base Sepolia and resolve its address + MEE client
     const { scaAddress, meeClient } = await initNexus();
 
-    // 2. Fund SCA: EOA transfers mock USDC to the SCA and waits for 2 confirmations
-    const fundTxHash = await _walletClient.writeContract({
-      abi: erc20Abi,
-      address: USDC,
-      functionName: 'transfer',
-      args: [scaAddress, FUND_AMOUNT],
-    });
-
-    await publicClient.waitForTransactionReceipt({
-      hash: fundTxHash,
-      confirmations: 2,
-    });
+    // 2. Fund SCA: EOA transfers mock USDC to the SCA
+    await fundWithUsdc(scaAddress, FUND_AMOUNT);
 
     // 3. Build composable batch: write storage → check storage → partial transfer → sweep remainder
     const batch = createComposableBatch(publicClient, scaAddress);

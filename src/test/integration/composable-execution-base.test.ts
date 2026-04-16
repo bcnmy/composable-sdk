@@ -1,16 +1,16 @@
-import { erc20Abi, getAddress, parseUnits } from 'viem';
+import type { Address } from 'viem';
+import { getAddress, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient, USDC_ADDRESS, walletClient } from '../utils';
+import { account, initNexus, publicClient } from '../utils';
 import { RUNTIME_TRANSFER_ABI } from './abi/runtime-transfer';
+import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 
-if (!account || !walletClient) throw new Error('PRIVATE_KEY is not set in environment');
+if (!account) throw new Error('PRIVATE_KEY is not set in environment');
 
-const _walletClient = walletClient;
-
-const USDC = getAddress(USDC_ADDRESS);
 const RUNTIME_TRANSFER_CONTRACT = getAddress('0x7c3b315E1d72CFdB8999A68a12e87fc3cc490fec');
+const DUMMY_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 const TRANSFER_AMOUNT = parseUnits('1', 6); // 1 mock USDC funded into the runtime transfer contract per test
 const SCA_MIN_BALANCE = parseUnits('0.5', 6); // top up SCA if it drops below this
@@ -20,32 +20,12 @@ const SCA_TARGET_BALANCE = parseUnits('1', 6); // top up SCA to this amount
 // Shared Nexus state — initialised once for the whole suite
 // ---------------------------------------------------------------------------
 
-let scaAddress: string;
+let scaAddress: Address;
 let meeClient: Awaited<ReturnType<typeof initNexus>>['meeClient'];
 
 // ---------------------------------------------------------------------------
-// Funding helpers
+// Top-up helpers (specific to this suite's balance thresholds)
 // ---------------------------------------------------------------------------
-
-async function fundWithUsdc(recipient: string, amount: bigint): Promise<void> {
-  const hash = await _walletClient.writeContract({
-    abi: erc20Abi,
-    address: USDC,
-    functionName: 'transfer',
-    args: [recipient, amount],
-  });
-
-  await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
-}
-
-async function usdcBalanceOf(address: string): Promise<bigint> {
-  return publicClient.readContract({
-    abi: erc20Abi,
-    address: USDC,
-    functionName: 'balanceOf',
-    args: [address as `0x${string}`],
-  });
-}
 
 // Tops up SCA to SCA_TARGET_BALANCE if its balance has dropped below SCA_MIN_BALANCE
 async function ensureScaBalance(): Promise<void> {
