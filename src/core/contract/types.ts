@@ -5,7 +5,7 @@ import type {
   ContractFunctionName,
   ContractFunctionReturnType,
 } from 'viem';
-import type { ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
+import type { Capture, ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
 
 /**
  * Recursively allows RuntimeValue at any depth — inside arrays, struct fields, or at the top level.
@@ -43,11 +43,17 @@ export interface ContractInstance<TAbi extends Abi | readonly unknown[]> {
     TFunctionName extends ContractFunctionName<TAbi, 'nonpayable' | 'payable'>,
     const TArgs extends ContractFunctionArgs<TAbi, 'nonpayable' | 'payable', TFunctionName> &
       readonly unknown[],
+    const TCaptureAbi extends Abi | readonly unknown[] = Abi,
+    TCaptureFunction extends ContractFunctionName<
+      TCaptureAbi,
+      'pure' | 'view'
+    > = ContractFunctionName<TCaptureAbi, 'pure' | 'view'>,
   >(params: {
     functionName: TFunctionName;
     args: ComposableArgs<TArgs>;
     value?: bigint;
-  }): ComposableCall;
+    capture?: Capture<TCaptureAbi, TCaptureFunction>;
+  }): Promise<ComposableCall>;
   runtimeValue<
     TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'>,
     const TArgs extends ContractFunctionArgs<TAbi, 'pure' | 'view', TFunctionName>,

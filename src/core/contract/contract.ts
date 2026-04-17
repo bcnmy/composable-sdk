@@ -14,6 +14,7 @@ import {
   type InputParam,
   InputParamFetcherType,
   prepareComposableInputCalldataParams,
+  prepareComposableOutputCalldataParams,
   prepareInputParam,
   runtimeParamViaCustomStaticCall,
   toConstraintFields,
@@ -31,6 +32,7 @@ export function createContract<
   publicClient: PublicClient<TTransport, TChain>,
   address: Address,
   abi: TAbi,
+  accountAddress?: Address,
 ): ContractInstance<TAbi> {
   return {
     address,
@@ -38,7 +40,7 @@ export function createContract<
     read({ functionName, args }) {
       return publicClient.readContract({ abi, address, functionName, args });
     },
-    write({ functionName, args, value }) {
+    async write({ functionName, args, value, capture }) {
       const functionContext = getFunctionContextFromAbi(functionName, abi as Abi);
 
       const inputParams: InputParam[] = prepareComposableInputCalldataParams(
@@ -49,9 +51,16 @@ export function createContract<
       const composableCall: ComposableCall = {
         functionSig: functionContext.functionSig,
         inputParams: formatInputParams(inputParams, address, value),
-        // In the current scope, output params are not handled. When more composability functions are added, this will change
         outputParams: [],
       };
+
+      if (capture) {
+        composableCall.outputParams = await prepareComposableOutputCalldataParams(
+          functionContext.outputs,
+          capture,
+          accountAddress,
+        );
+      }
 
       return composableCall;
     },

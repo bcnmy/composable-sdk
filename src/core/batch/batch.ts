@@ -27,7 +27,7 @@ export function createComposableBatch<
       return createNativeToken(publicClient, accountAddress);
     },
     contract(address, abi) {
-      return createContract(publicClient, address, abi);
+      return createContract(publicClient, address, abi, accountAddress);
     },
     storage() {
       return createStorage(publicClient, accountAddress);

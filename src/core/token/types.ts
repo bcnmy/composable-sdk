@@ -1,4 +1,5 @@
 import type {
+  Abi,
   Address,
   ContractFunctionArgs,
   ContractFunctionName,
@@ -6,7 +7,7 @@ import type {
   erc20Abi,
 } from 'viem';
 import type { ComposableArgs } from '../contract';
-import type { ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
+import type { Capture, ComposableCall, RuntimeConstraint, RuntimeValue } from '../encoding';
 
 export type ERC20Abi = typeof erc20Abi;
 
@@ -44,11 +45,17 @@ export interface ERC20TokenInstance {
     TFunctionName extends ContractFunctionName<ERC20Abi, 'nonpayable' | 'payable'>,
     const TArgs extends ContractFunctionArgs<ERC20Abi, 'nonpayable' | 'payable', TFunctionName> &
       readonly unknown[],
+    const TCaptureAbi extends Abi | readonly unknown[] = Abi,
+    TCaptureFunction extends ContractFunctionName<
+      TCaptureAbi,
+      'pure' | 'view'
+    > = ContractFunctionName<TCaptureAbi, 'pure' | 'view'>,
   >(params: {
     functionName: TFunctionName;
     args: ComposableArgs<TArgs>;
     value?: bigint;
-  }): ComposableCall;
+    capture?: Capture<TCaptureAbi, TCaptureFunction>;
+  }): Promise<ComposableCall>;
   check<
     TFunctionName extends ContractFunctionName<ERC20Abi, 'pure' | 'view'>,
     const TArgs extends ContractFunctionArgs<ERC20Abi, 'pure' | 'view', TFunctionName>,

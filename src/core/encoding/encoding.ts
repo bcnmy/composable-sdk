@@ -1,6 +1,8 @@
 import {
+  type Abi,
   type AbiParameter,
   type Address,
+  type ContractFunctionName,
   concatHex,
   encodeAbiParameters,
   encodeFunctionData,
@@ -11,10 +13,17 @@ import {
   isHex,
   zeroAddress,
 } from 'viem';
+import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
+import { getStorageSlot } from '../storage/slot';
 import type { AnyData } from '../types';
 import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
-import { encodeAddress, encodeRuntimeFunctionData } from './runtimeAbiEncoding';
 import {
+  encodeAddress,
+  encodeRuntimeFunctionData,
+  getFunctionContextFromAbi,
+} from './runtimeAbiEncoding';
+import {
+  type Capture,
   type ComposableCall,
   type Constraint,
   type ConstraintField,
@@ -23,7 +32,7 @@ import {
   InputParamFetcherType,
   InputParamType,
   type OutputParam,
-  type OutputParamFetcherType,
+  OutputParamFetcherType,
   type RuntimeBalanceOfParams,
   type RuntimeConstraint,
   type RuntimeNativeBalanceOfParams,
@@ -410,6 +419,139 @@ export const formatInputParams = (inputParams: InputParam[], address: Address, v
     targetInputParam,
     ...(valueInputParam ? [valueInputParam] : []), // do not add valueInputParam if it is undefined
   ];
+};
+
+/**
+ * Returns true when the ABI parameter is a static (fixed-size) type.
+ * Dynamic types — `bytes`, `string`, unbounded arrays (`T[]`), and tuples or
+ * fixed arrays whose components contain dynamic types — return false.
+ */
+function isStaticAbiType(param: AbiParameter): boolean {
+  const { type } = param;
+
+  if (type === 'bytes' || type === 'string') return false;
+  if (type.endsWith('[]')) return false; // unbounded dynamic arrays
+
+  // Plain tuple: static only when every component is static
+  if (type === 'tuple') {
+    const components = ('components' in param ? param.components : undefined) ?? [];
+    return (components as AbiParameter[]).every(isStaticAbiType);
+  }
+
+  // Fixed-size array (e.g. uint256[5], bytes32[3], tuple[2]):
+  // recurse on the base type, carrying components for tuple bases
+  const fixedArrayMatch = type.match(/^(.+)\[\d+\]$/);
+  if (fixedArrayMatch) {
+    const baseType = fixedArrayMatch[1];
+    const baseParam: AbiParameter =
+      baseType === 'tuple'
+        ? ({
+            type: 'tuple',
+            ...('components' in param && { components: param.components }),
+          } as AbiParameter)
+        : ({ type: baseType } as AbiParameter);
+    return isStaticAbiType(baseParam);
+  }
+
+  // uint<M>, int<M>, bool, address, bytes<M> — all static
+  return true;
+}
+
+/**
+ * Builds the `outputParams` array for a composable write call from a {@link Capture} descriptor.
+ *
+ * - `execResult` — validates that every output of the called function is a static ABI type
+ *   (dynamic types are not supported by the module) and produces a single EXEC_RESULT OutputParam.
+ * - `staticCall` — produces a single STATIC_CALL OutputParam encoding the target address and
+ *   calldata of the post-execution static call to fetch.
+ *
+ * @param outputs - The ABI output parameters of the write function (from {@link FunctionContext}).
+ * @param capture - The capture descriptor, or `undefined` to return an empty array.
+ */
+export const prepareComposableOutputCalldataParams = async <
+  TAbi extends Abi | readonly unknown[],
+  TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'>,
+>(
+  outputs: readonly AbiParameter[],
+  capture: Capture<TAbi, TFunctionName>,
+  accountAddress?: Address,
+  callerAddress?: Address,
+): Promise<OutputParam[]> => {
+  if (!accountAddress) {
+    throw new Error(
+      'capture requires an accountAddress for storage slot generation — use batch.contract() or pass accountAddress to createContract()',
+    );
+  }
+
+  const resolvedCallerAddress = callerAddress ?? accountAddress;
+
+  // Derive the namespace storage slot from the provided key (or generate a unique default).
+  const slot: Hex = await getStorageSlot(accountAddress, resolvedCallerAddress, capture.storageKey);
+
+  if (capture.type === 'execResult') {
+    if (outputs.length === 0) {
+      throw new Error('capture execResult: the function has no return values to capture');
+    }
+
+    outputs.forEach((output, index) => {
+      if (!isStaticAbiType(output)) {
+        throw new Error(
+          `capture execResult: return value at index ${index} has dynamic type "${output.type}" which is not supported — all return types must be static ABI types`,
+        );
+      }
+    });
+
+    // paramData mirrors: abi.encode(count, storageContract, slot)
+    const paramData = encodeAbiParameters(
+      [{ type: 'uint256' }, { type: 'address' }, { type: 'bytes32' }],
+      [BigInt(outputs.length), NAMESPACE_STORAGE_CONTRACT_ADDRESS, slot],
+    );
+
+    return [prepareOutputParam(OutputParamFetcherType.EXEC_RESULT, paramData)];
+  }
+
+  // staticCall — derive output count from the static call function's own ABI
+  const captureAbi = capture.abi as Abi;
+  const staticCallContext = getFunctionContextFromAbi(capture.functionName, captureAbi);
+  const staticCallOutputs = staticCallContext.outputs;
+
+  if (staticCallOutputs.length === 0) {
+    throw new Error('capture staticCall: the static call function has no return values to capture');
+  }
+
+  staticCallOutputs.forEach((output, index) => {
+    if (!isStaticAbiType(output)) {
+      throw new Error(
+        `capture staticCall: return value at index ${index} has dynamic type "${output.type}" which is not supported — all return types must be static ABI types`,
+      );
+    }
+  });
+
+  const calldata = encodeFunctionData({
+    abi: captureAbi,
+    functionName: capture.functionName as string,
+    args: capture.args as AnyData[],
+  });
+
+  // paramData mirrors: abi.encode(count, targetAddress, calldata, storageContract, slot)
+  const paramData = encodeAbiParameters(
+    [
+      { type: 'uint256' },
+      { type: 'address' },
+      { type: 'bytes' },
+      { type: 'address' },
+      { type: 'bytes32' },
+    ],
+    [
+      BigInt(staticCallOutputs.length),
+      capture.targetAddress,
+      calldata,
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS,
+      slot,
+    ],
+  );
+
+  return [prepareOutputParam(OutputParamFetcherType.STATIC_CALL, paramData)];
 };
 
 /**
