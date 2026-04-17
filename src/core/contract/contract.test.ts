@@ -138,107 +138,128 @@ describe('contract — write (ERC20 on Base Sepolia)', () => {
   const token = createContract(publicClient, USDC, ERC20_WRITE_ABI);
   const SPENDER = WETH; // arbitrary recipient/spender address
 
-  it('write(transfer) returns a ComposableCall', () => {
-    const result = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) returns a ComposableCall', async () => {
+    const result = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     expect(typeof result).toBe('object');
     expect(result.functionSig).toBeDefined();
   });
 
-  it('write(transfer) encodes the correct function selector', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) encodes the correct function selector', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     // keccak256("transfer(address,uint256)") first 4 bytes = 0xa9059cbb
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
-  it('write(approve) encodes the correct function selector', () => {
-    const call = token.write({ functionName: 'approve', args: [SPENDER, 1_000_000n] });
+  it('write(approve) encodes the correct function selector', async () => {
+    const call = await token.write({ functionName: 'approve', args: [SPENDER, 1_000_000n] });
     // keccak256("approve(address,uint256)") first 4 bytes = 0x095ea7b3
     expect(call.functionSig).toBe('0x095ea7b3');
   });
 
-  it('write(transferFrom) encodes the correct function selector', () => {
-    const call = token.write({ functionName: 'transferFrom', args: [USDC, SPENDER, 1_000_000n] });
+  it('write(transferFrom) encodes the correct function selector', async () => {
+    const call = await token.write({
+      functionName: 'transferFrom',
+      args: [USDC, SPENDER, 1_000_000n],
+    });
     // keccak256("transferFrom(address,address,uint256)") first 4 bytes = 0x23b872dd
     expect(call.functionSig).toBe('0x23b872dd');
   });
 
-  it('write(transfer) outputParams is empty', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) outputParams is empty', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     expect(call.outputParams).toHaveLength(0);
   });
 
-  it('write(transfer) inputParams includes a CALL_DATA param', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) inputParams includes a CALL_DATA param', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const calldataParam = call.inputParams.find((p) => p.paramType === InputParamType.CALL_DATA);
     expect(calldataParam).toBeDefined();
     expect(calldataParam?.paramData).toMatch(/^0x[0-9a-fA-F]+$/);
   });
 
-  it('write(transfer) inputParams includes a TARGET param with the contract address', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) inputParams includes a TARGET param with the contract address', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const targetParam = call.inputParams.find((p) => p.paramType === InputParamType.TARGET);
     expect(targetParam).toBeDefined();
     // paramData is the ABI-encoded address (padded to 32 bytes), USDC address should be present
     expect(targetParam?.paramData.toLowerCase()).toContain(USDC.slice(2).toLowerCase());
   });
 
-  it('write(transfer) without value does not include a VALUE param', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+  it('write(transfer) without value does not include a VALUE param', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
     const valueParam = call.inputParams.find((p) => p.paramType === InputParamType.VALUE);
     expect(valueParam).toBeUndefined();
   });
 
-  it('write(transfer) with value includes a VALUE param', () => {
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n], value: 1n });
+  it('write(transfer) with value includes a VALUE param', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [SPENDER, 1_000_000n],
+      value: 1n,
+    });
     const valueParam = call.inputParams.find((p) => p.paramType === InputParamType.VALUE);
     expect(valueParam).toBeDefined();
   });
 
-  it('write(transfer) is deterministic for the same args', () => {
-    const a = token.write({ functionName: 'transfer', args: [SPENDER, 500n] });
-    const b = token.write({ functionName: 'transfer', args: [SPENDER, 500n] });
+  it('write(transfer) is deterministic for the same args', async () => {
+    const [a, b] = await Promise.all([
+      token.write({ functionName: 'transfer', args: [SPENDER, 500n] }),
+      token.write({ functionName: 'transfer', args: [SPENDER, 500n] }),
+    ]);
     expect(a.functionSig).toBe(b.functionSig);
     expect(JSON.stringify(a.inputParams)).toBe(JSON.stringify(b.inputParams));
   });
 
-  it('write(transfer) produces different inputParams for different amounts', () => {
-    const a = token.write({ functionName: 'transfer', args: [SPENDER, 1n] });
-    const b = token.write({ functionName: 'transfer', args: [SPENDER, 2n] });
+  it('write(transfer) produces different inputParams for different amounts', async () => {
+    const [a, b] = await Promise.all([
+      token.write({ functionName: 'transfer', args: [SPENDER, 1n] }),
+      token.write({ functionName: 'transfer', args: [SPENDER, 2n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
-  it('write(transfer) produces different inputParams for different recipients', () => {
-    const a = token.write({ functionName: 'transfer', args: [USDC, 1_000_000n] });
-    const b = token.write({ functionName: 'transfer', args: [WETH, 1_000_000n] });
+  it('write(transfer) produces different inputParams for different recipients', async () => {
+    const [a, b] = await Promise.all([
+      token.write({ functionName: 'transfer', args: [USDC, 1_000_000n] }),
+      token.write({ functionName: 'transfer', args: [WETH, 1_000_000n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
-  it('write(transfer) accepts a RuntimeValue for the amount arg', () => {
+  it('write(transfer) accepts a RuntimeValue for the amount arg', async () => {
     const runtimeAmount = token.runtimeValue({ functionName: 'balanceOf', args: [SPENDER] });
-    const call = token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] });
+    const call = await token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] });
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
-  it('write(transfer) accepts a RuntimeValue for the recipient arg', () => {
+  it('write(transfer) accepts a RuntimeValue for the recipient arg', async () => {
     const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
     const runtimeRecipient = factory.runtimeValue({ functionName: 'owner', args: [] });
-    const call = token.write({ functionName: 'transfer', args: [runtimeRecipient, 1_000_000n] });
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [runtimeRecipient, 1_000_000n],
+    });
     expect(call.functionSig).toBe('0xa9059cbb');
   });
 
-  it('write(transfer) with RuntimeValue arg produces more inputParams than a plain call', () => {
+  it('write(transfer) with RuntimeValue arg produces more inputParams than a plain call', async () => {
     const runtimeAmount = token.runtimeValue({ functionName: 'balanceOf', args: [SPENDER] });
-    const composable = token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] });
-    const plain = token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] });
+    const [composable, plain] = await Promise.all([
+      token.write({ functionName: 'transfer', args: [SPENDER, runtimeAmount] }),
+      token.write({ functionName: 'transfer', args: [SPENDER, 1_000_000n] }),
+    ]);
     // RuntimeValue injects a STATIC_CALL inputParam in addition to the calldata params
     expect(composable.inputParams.length).toBeGreaterThan(plain.inputParams.length);
   });
 
-  it('write(approve) accepts RuntimeValues for both args', () => {
+  it('write(approve) accepts RuntimeValues for both args', async () => {
     const factory = createContract(publicClient, UNISWAP_V3_FACTORY, UNISWAP_V3_FACTORY_ABI);
     const runtimeSpender = factory.runtimeValue({ functionName: 'owner', args: [] });
     const runtimeAmount = token.runtimeValue({ functionName: 'totalSupply', args: [] });
-    const call = token.write({ functionName: 'approve', args: [runtimeSpender, runtimeAmount] });
+    const call = await token.write({
+      functionName: 'approve',
+      args: [runtimeSpender, runtimeAmount],
+    });
     expect(call.functionSig).toBe('0x095ea7b3');
   });
 });
