@@ -36,7 +36,10 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
         constraints: [{ gte: FUND_AMOUNT }],
       }),
       // Sweep: transfer the SCA's full runtime balance to the EOA
-      usdc.write({ functionName: 'transfer', args: [_account.address, usdc.runtimeBalance()] }),
+      await usdc.write({
+        functionName: 'transfer',
+        args: [_account.address, usdc.runtimeBalance()],
+      }),
       // Post-condition: assert SCA balance is zero (or near zero) after sweep
       usdc.check({ functionName: 'balanceOf', args: [scaAddress], constraints: [{ gte: 0n }] }),
     ]);
@@ -79,7 +82,10 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
         constraints: [{ gte: 2n * FUND_AMOUNT }],
       }),
       // Sweep: would transfer runtime balance to EOA (never reached due to revert)
-      usdc.write({ functionName: 'transfer', args: [_account.address, usdc.runtimeBalance()] }),
+      await usdc.write({
+        functionName: 'transfer',
+        args: [_account.address, usdc.runtimeBalance()],
+      }),
     ]);
 
     expect(batch.length).toBe(2);
@@ -106,7 +112,10 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
 
     batch.add([
       // Sweep: transfer runtime balance from SCA to EOA
-      usdc.write({ functionName: 'transfer', args: [_account.address, usdc.runtimeBalance()] }),
+      await usdc.write({
+        functionName: 'transfer',
+        args: [_account.address, usdc.runtimeBalance()],
+      }),
       // Post-condition: require FUND_AMOUNT remaining after full sweep — will revert because balance is zero
       usdc.check({
         functionName: 'balanceOf',
@@ -151,12 +160,15 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
       // Step B: assert the stored value equals what was just written before proceeding
       await storage.check({ storageKey, constraints: [{ eq: storageValue }] }),
       // Step C: transfer the runtime-resolved storage value (FUND_AMOUNT/2) from SCA to EOA
-      usdc.write({
+      await usdc.write({
         functionName: 'transfer',
         args: [_account.address, await storage.runtimeValue({ storageKey })],
       }),
       // Step D: sweep any remaining SCA balance (the other half) to the EOA
-      usdc.write({ functionName: 'transfer', args: [_account.address, usdc.runtimeBalance()] }),
+      await usdc.write({
+        functionName: 'transfer',
+        args: [_account.address, usdc.runtimeBalance()],
+      }),
     ]);
 
     expect(batch.length).toBe(4);

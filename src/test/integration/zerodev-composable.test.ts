@@ -191,7 +191,7 @@ describe.skip('Integration — ZeroDev Kernel + Biconomy composability module (B
         constraints: [{ gte: FUND_AMOUNT }],
       }),
       // Sweep: transfer the SCA's full runtime USDC balance to the EOA
-      usdc.write({
+      await usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),

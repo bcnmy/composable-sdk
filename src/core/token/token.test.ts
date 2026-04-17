@@ -466,51 +466,60 @@ describe('ERC20Token — check', () => {
 describe('ERC20Token — write', () => {
   const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
-  it('write(transfer) returns a ComposableCall object', () => {
-    const call = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call).toBe('object');
-  });
-
-  it('write(transfer) has a functionSig', () => {
-    const call = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call.functionSig).toBe('string');
-    expect(call.functionSig.length).toBeGreaterThan(0);
-  });
-
-  it('write(approve) has a functionSig', () => {
-    const call = usdc.write({ functionName: 'approve', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call.functionSig).toBe('string');
-    expect(call.functionSig.length).toBeGreaterThan(0);
-  });
-
-  it('write(transfer) and write(approve) produce different functionSigs', () => {
-    const transfer = usdc.write({
+  it('write(transfer) returns a ComposableCall object', async () => {
+    const call = await usdc.write({
       functionName: 'transfer',
       args: [UNISWAP_V3_ROUTER, 1_000_000n],
     });
-    const approve = usdc.write({
+    expect(typeof call).toBe('object');
+  });
+
+  it('write(transfer) has a functionSig', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [UNISWAP_V3_ROUTER, 1_000_000n],
+    });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('write(approve) has a functionSig', async () => {
+    const call = await usdc.write({
       functionName: 'approve',
       args: [UNISWAP_V3_ROUTER, 1_000_000n],
     });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('write(transfer) and write(approve) produce different functionSigs', async () => {
+    const [transfer, approve] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] }),
+      usdc.write({ functionName: 'approve', args: [UNISWAP_V3_ROUTER, 1_000_000n] }),
+    ]);
     expect(transfer.functionSig).not.toBe(approve.functionSig);
   });
 
-  it('write(transfer) accepts a runtimeBalance() as the amount arg', () => {
+  it('write(transfer) accepts a runtimeBalance() as the amount arg', async () => {
     const rv = usdc.runtimeBalance({ owner: UNISWAP_V3_ROUTER });
-    const call = usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, rv] });
+    const call = await usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, rv] });
     expect(typeof call).toBe('object');
     expect(call.functionSig).toBeDefined();
   });
 
-  it('write(transfer) produces different inputParams for different amounts', () => {
-    const a = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] });
-    const b = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 2n] });
+  it('write(transfer) produces different inputParams for different amounts', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] }),
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 2n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
-  it('write(transfer) produces different inputParams for different recipients', () => {
-    const a = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] });
-    const b = usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1n] });
+  it('write(transfer) produces different inputParams for different recipients', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] }),
+      usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 });

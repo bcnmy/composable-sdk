@@ -10,7 +10,7 @@ import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 if (!account) throw new Error('PRIVATE_KEY is not set in environment');
 
 const RUNTIME_TRANSFER_CONTRACT = getAddress('0x7c3b315E1d72CFdB8999A68a12e87fc3cc490fec');
-const DUMMY_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
+const _DUMMY_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 const TRANSFER_AMOUNT = parseUnits('1', 6); // 1 mock USDC funded into the runtime transfer contract per test
 const SCA_MIN_BALANCE = parseUnits('0.5', 6); // top up SCA if it drops below this
@@ -83,7 +83,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
       // Transfer: move the runtime transfer contract's full balance to the SCA
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFunds',
         args: [
           USDC,
@@ -136,7 +136,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFundsWithStruct',
         args: [
           USDC,
@@ -188,7 +188,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFundsWithDynamicArray',
         args: [
           USDC,
@@ -238,7 +238,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFundsWithString',
         args: [
           USDC,
@@ -288,7 +288,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFundsWithBytes',
         args: [
           USDC,
@@ -338,7 +338,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      runtimeTransfer.write({
+      await runtimeTransfer.write({
         functionName: 'transferFundsWithRuntimeParamInsideArray',
         args: [
           USDC,
