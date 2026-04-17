@@ -36,7 +36,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
         constraints: [{ gte: FUND_AMOUNT }],
       }),
       // Sweep: transfer the SCA's full runtime balance to the EOA
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),
@@ -51,15 +51,16 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     expect(Number(scaBalanceBefore)).to.greaterThanOrEqual(Number(FUND_AMOUNT));
 
     // 5. Get a quote for the composable instruction, then sign and submit it via MEE
+
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     // 6. Execute the signed quote and wait for the supertransaction to settle
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     // 7. Assert SCA balance has been swept to zero (minus fees)
     const scaBalanceAfter = await usdc.read({ functionName: 'balanceOf', args: [scaAddress] });
@@ -82,7 +83,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
         constraints: [{ gte: 2n * FUND_AMOUNT }],
       }),
       // Sweep: would transfer runtime balance to EOA (never reached due to revert)
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),
@@ -91,9 +92,12 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     expect(batch.length).toBe(2);
 
     // 3. Submit quote — expect simulation to revert because pre-check constraint is not satisfied
+
     await expect(
       meeClient.getQuote({
-        instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+        instructions: [
+          { calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true },
+        ],
         simulation: { simulate: true },
         feeToken: { address: USDC, chainId: baseSepolia.id },
       }),
@@ -112,7 +116,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
 
     batch.add([
       // Sweep: transfer runtime balance from SCA to EOA
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),
@@ -127,9 +131,12 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     expect(batch.length).toBe(2);
 
     // 3. Submit quote — expect simulation to revert because post-check constraint is not satisfied
+
     await expect(
       meeClient.getQuote({
-        instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+        instructions: [
+          { calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true },
+        ],
         simulation: { simulate: true },
         feeToken: { address: USDC, chainId: baseSepolia.id },
       }),
@@ -156,16 +163,16 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
 
     batch.add([
       // Step A: write FUND_AMOUNT/2 into the shared namespace storage slot
-      await storage.write({ value: storageValue, storageKey }),
+      storage.write({ value: storageValue, storageKey }),
       // Step B: assert the stored value equals what was just written before proceeding
-      await storage.check({ storageKey, constraints: [{ eq: storageValue }] }),
+      storage.check({ storageKey, constraints: [{ eq: storageValue }] }),
       // Step C: transfer the runtime-resolved storage value (FUND_AMOUNT/2) from SCA to EOA
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, await storage.runtimeValue({ storageKey })],
       }),
       // Step D: sweep any remaining SCA balance (the other half) to the EOA
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),
@@ -174,15 +181,16 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     expect(batch.length).toBe(4);
 
     // 4. Get a quote for the composable instruction, then sign and submit it via MEE
+
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     // 5. Execute the signed quote and wait for the supertransaction to settle
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     // 6. Assert the on-chain storage slot holds the value that was written in step A
     expect(await storage.read({ storageKey })).to.eq(toBytes32(storageValue));

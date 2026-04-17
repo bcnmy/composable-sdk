@@ -83,7 +83,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
       // Transfer: move the runtime transfer contract's full balance to the SCA
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFunds',
         args: [
           USDC,
@@ -103,13 +103,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     // Runtime transfer contract should be swept to zero after the transfer
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
@@ -136,7 +136,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFundsWithStruct',
         args: [
           USDC,
@@ -157,13 +157,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -188,7 +188,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFundsWithDynamicArray',
         args: [
           USDC,
@@ -207,13 +207,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -238,7 +238,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFundsWithString',
         args: [
           USDC,
@@ -257,13 +257,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -288,7 +288,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFundsWithBytes',
         args: [
           USDC,
@@ -307,13 +307,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -338,7 +338,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
         args: [RUNTIME_TRANSFER_CONTRACT],
         constraints: [{ gte: TRANSFER_AMOUNT }],
       }),
-      await runtimeTransfer.write({
+      runtimeTransfer.write({
         functionName: 'transferFundsWithRuntimeParamInsideArray',
         args: [
           USDC,
@@ -356,13 +356,13 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash });
+    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);

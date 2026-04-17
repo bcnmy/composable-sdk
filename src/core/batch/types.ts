@@ -18,8 +18,10 @@ export interface ComposableBatchInstance<
     abi: TAbi,
   ): ContractInstance<TAbi>;
   storage(): StorageInstance;
-  readonly calls: ComposableCall[];
-  add(call: ComposableCall | ComposableCall[]): void;
+  add(
+    calls: ComposableCall | Promise<ComposableCall> | (ComposableCall | Promise<ComposableCall>)[],
+  ): void;
   clear(): void;
+  toCalls(): Promise<ComposableCall[]>;
   toCalldata(): Promise<Hex>;
 }

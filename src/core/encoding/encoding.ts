@@ -559,7 +559,7 @@ export const prepareComposableOutputCalldataParams = async <
  * @param call - The calls to encode
  * @returns The encoded composable compatible call
  */
-export const encodeExecuteComposable = async (calls: ComposableCall[]): Promise<Hex> => {
+export const encodeExecuteComposable = (calls: ComposableCall[]): Hex => {
   const composableCalls = calls.map((call) => {
     return {
       functionSig: call.functionSig,

@@ -191,7 +191,7 @@ describe.skip('Integration — ZeroDev Kernel + Biconomy composability module (B
         constraints: [{ gte: FUND_AMOUNT }],
       }),
       // Sweep: transfer the SCA's full runtime USDC balance to the EOA
-      await usdc.write({
+      usdc.write({
         functionName: 'transfer',
         args: [_account.address, usdc.runtimeBalance()],
       }),
@@ -209,6 +209,7 @@ describe.skip('Integration — ZeroDev Kernel + Biconomy composability module (B
     // The SCA receives the executeComposable selector and routes it to the
     // composability module via its FALLBACK handler. The module then resolves
     // runtime values and calls back via executeFromExecutor for each sub-call.
+
     const userOpHash = await kernelClient.sendUserOperation({
       callData: await batch.toCalldata(),
     });
