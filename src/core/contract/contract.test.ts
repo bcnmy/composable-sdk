@@ -1,8 +1,11 @@
 import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
-import { InputParamFetcherType, InputParamType } from '../encoding';
+import { InputParamFetcherType, InputParamType, OutputParamFetcherType } from '../encoding';
+import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { createContract } from './contract';
+
+const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
 
 // Uniswap V3 Factory on Base Sepolia
 const UNISWAP_V3_FACTORY = getAddress('0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24');
@@ -88,6 +91,87 @@ const ERC20_ABI = [
 
 // Keep backward-compat alias used in write tests below
 const ERC20_WRITE_ABI = ERC20_ABI;
+
+// Dummy ABI with a write function returning 3 static outputs: (uint256, bool, address)
+const MULTI_OUTPUT_WRITE_ABI = [
+  {
+    name: 'multiReturn',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'value', type: 'uint256' }],
+    outputs: [
+      { name: 'a', type: 'uint256' },
+      { name: 'b', type: 'bool' },
+      { name: 'c', type: 'address' },
+    ],
+  },
+] as const;
+
+// Dummy ABI with a view function returning 2 static outputs: (uint256, uint256)
+const MULTI_OUTPUT_VIEW_ABI = [
+  {
+    name: 'multiView',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'x', type: 'uint256' }],
+    outputs: [
+      { name: 'p', type: 'uint256' },
+      { name: 'q', type: 'uint256' },
+    ],
+  },
+] as const;
+
+// Dummy ABI with a write function that has a dynamic output type (bytes) — invalid for capture
+const DYNAMIC_OUTPUT_WRITE_ABI = [
+  {
+    name: 'dynamicReturn',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [{ name: 'data', type: 'bytes' }],
+  },
+] as const;
+
+// Dummy ABI with a view function that has a dynamic output type (string) — invalid for staticCall capture
+const DYNAMIC_OUTPUT_VIEW_ABI = [
+  {
+    name: 'dynamicView',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: 'str', type: 'string' }],
+  },
+] as const;
+
+// Dummy ABI with a write function that returns nothing — invalid for execResult capture
+const VOID_WRITE_ABI = [
+  {
+    name: 'noReturn',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+] as const;
+
+// Dummy ABI with a view function that returns nothing — invalid for staticCall capture
+const VOID_VIEW_ABI = [
+  {
+    name: 'noView',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [],
+  },
+] as const;
+
+// The count is the first 32 bytes of the ABI-encoded paramData (uint256, big-endian).
+// Returns the decimal count embedded at the start of the paramData hex string.
+function decodeOutputCount(paramData: string): number {
+  // paramData = '0x' + 64 hex chars for uint256 count + rest
+  const countHex = paramData.slice(2, 66);
+  return Number(BigInt(`0x${countHex}`));
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -483,5 +567,408 @@ describe('contract — runtimeValue (Uniswap V3 Factory)', () => {
     expect(withConstraint.inputParams[0].paramData).toBe(
       withoutConstraint.inputParams[0].paramData,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// contract — write with capture: execResult
+// ---------------------------------------------------------------------------
+
+describe('contract — write with capture: execResult', () => {
+  // transfer(address,uint256) returns (bool) — 1 static output, suitable for execResult
+  const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is EXEC_RESULT', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.EXEC_RESULT);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('two calls without a storageKey produce different slots (auto-generated key)', async () => {
+    const [a, b] = await Promise.all([
+      token.write({ functionName: 'transfer', args: [WETH, 1n], capture: { type: 'execResult' } }),
+      token.write({ functionName: 'transfer', args: [WETH, 1n], capture: { type: 'execResult' } }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('same storageKey produces the same paramData', async () => {
+    const storageKey = 99n;
+    const [a, b] = await Promise.all([
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).toBe(b.outputParams[0].paramData);
+  });
+
+  it('without capture, outputParams is empty', async () => {
+    const call = await token.write({ functionName: 'transfer', args: [WETH, 1_000_000n] });
+    expect(call.outputParams).toHaveLength(0);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const tokenNoAccount = createContract(publicClient, USDC, ERC20_ABI);
+    await expect(
+      tokenNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH, 1_000_000n],
+        capture: { type: 'execResult' },
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// contract — write with capture: staticCall
+// ---------------------------------------------------------------------------
+
+describe('contract — write with capture: staticCall', () => {
+  // transfer returns bool; we capture the post-transfer balance via a staticCall on balanceOf
+  const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+
+  const STATIC_CALL_CAPTURE = {
+    type: 'staticCall' as const,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf' as const,
+    targetAddress: USDC,
+    args: [ACCOUNT] as const,
+    storageKey: 1n,
+  };
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is STATIC_CALL', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes the targetAddress', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(USDC.slice(2).toLowerCase());
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('different targetAddress produces different paramData', async () => {
+    const [a, b] = await Promise.all([
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: USDC },
+      }),
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: WETH },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('different staticCall args produce different paramData', async () => {
+    const [a, b] = await Promise.all([
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [ACCOUNT] },
+      }),
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [WETH] },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const tokenNoAccount = createContract(publicClient, USDC, ERC20_ABI);
+    await expect(
+      tokenNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH, 1_000_000n],
+        capture: STATIC_CALL_CAPTURE,
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// contract — write with capture: multiple outputs (dummy contract)
+// ---------------------------------------------------------------------------
+
+describe('contract — write with capture: multiple outputs (dummy contract)', () => {
+  // Use USDC as a stand-in address — write() does not call the contract, only encodes
+  const dummy = createContract(publicClient, USDC, MULTI_OUTPUT_WRITE_ABI, ACCOUNT);
+  const STORAGE_KEY = 42n;
+
+  it('execResult with 3 outputs: outputParams still has exactly 1 entry', async () => {
+    const call = await dummy.write({
+      functionName: 'multiReturn',
+      args: [1n],
+      capture: { type: 'execResult', storageKey: STORAGE_KEY },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('execResult with 3 outputs: fetcherType is EXEC_RESULT', async () => {
+    const call = await dummy.write({
+      functionName: 'multiReturn',
+      args: [1n],
+      capture: { type: 'execResult', storageKey: STORAGE_KEY },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.EXEC_RESULT);
+  });
+
+  it('execResult with 3 outputs: paramData encodes count = 3', async () => {
+    const call = await dummy.write({
+      functionName: 'multiReturn',
+      args: [1n],
+      capture: { type: 'execResult', storageKey: STORAGE_KEY },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(3);
+  });
+
+  it('execResult count differs between 1-output and 3-output functions (same storageKey)', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    const [single, multi] = await Promise.all([
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: { type: 'execResult', storageKey: STORAGE_KEY },
+      }),
+      dummy.write({
+        functionName: 'multiReturn',
+        args: [1n],
+        capture: { type: 'execResult', storageKey: STORAGE_KEY },
+      }),
+    ]);
+    expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(3);
+    expect(single.outputParams[0].paramData).not.toBe(multi.outputParams[0].paramData);
+  });
+
+  it('staticCall with 2-output view ABI: outputParams still has exactly 1 entry', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC,
+        args: [99n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('staticCall with 2-output view ABI: fetcherType is STATIC_CALL', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC,
+        args: [99n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('staticCall with 2-output view ABI: paramData encodes count = 2', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    const call = await token.write({
+      functionName: 'transfer',
+      args: [WETH, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC,
+        args: [99n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(2);
+  });
+
+  it('staticCall count differs between 1-output and 2-output view ABIs (same storageKey)', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    const [single, multi] = await Promise.all([
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          targetAddress: USDC,
+          args: [ACCOUNT],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: MULTI_OUTPUT_VIEW_ABI,
+          functionName: 'multiView',
+          targetAddress: USDC,
+          args: [99n],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+    ]);
+    expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// contract — write with capture: error cases
+// ---------------------------------------------------------------------------
+
+describe('contract — write with capture: error cases', () => {
+  const STORAGE_KEY = 1n;
+
+  it('execResult throws when write function has no return values', async () => {
+    const contract = createContract(publicClient, USDC, VOID_WRITE_ABI, ACCOUNT);
+    await expect(
+      contract.write({
+        functionName: 'noReturn',
+        args: [],
+        capture: { type: 'execResult', storageKey: STORAGE_KEY },
+      }),
+    ).rejects.toThrow('capture execResult: the function has no return values to capture');
+  });
+
+  it('execResult throws when write function returns a dynamic type (bytes)', async () => {
+    const contract = createContract(publicClient, USDC, DYNAMIC_OUTPUT_WRITE_ABI, ACCOUNT);
+    await expect(
+      contract.write({
+        functionName: 'dynamicReturn',
+        args: [],
+        capture: { type: 'execResult', storageKey: STORAGE_KEY },
+      }),
+    ).rejects.toThrow('capture execResult: return value at index 0 has dynamic type "bytes"');
+  });
+
+  it('staticCall throws when view function has no return values', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    await expect(
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: VOID_VIEW_ABI,
+          functionName: 'noView',
+          targetAddress: USDC,
+          args: [],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+    ).rejects.toThrow(
+      'capture staticCall: the static call function has no return values to capture',
+    );
+  });
+
+  it('staticCall throws when view function returns a dynamic type (string)', async () => {
+    const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
+    await expect(
+      token.write({
+        functionName: 'transfer',
+        args: [WETH, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: DYNAMIC_OUTPUT_VIEW_ABI,
+          functionName: 'dynamicView',
+          targetAddress: USDC,
+          args: [],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+    ).rejects.toThrow('capture staticCall: return value at index 0 has dynamic type "string"');
   });
 });

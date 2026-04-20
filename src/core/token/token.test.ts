@@ -1,8 +1,31 @@
-import { getAddress } from 'viem';
+import { erc20Abi, getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
-import { InputParamFetcherType } from '../encoding';
+import { InputParamFetcherType, OutputParamFetcherType } from '../encoding';
+import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { createERC20Token, createNativeToken } from './token';
+
+// Dummy ABI with a view function returning 2 static outputs: (uint256, uint256)
+const MULTI_OUTPUT_VIEW_ABI = [
+  {
+    name: 'multiView',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'x', type: 'uint256' }],
+    outputs: [
+      { name: 'p', type: 'uint256' },
+      { name: 'q', type: 'uint256' },
+    ],
+  },
+] as const;
+
+// The count is the first 32 bytes of the ABI-encoded paramData (uint256, big-endian).
+function decodeOutputCount(paramData: string): number {
+  const countHex = paramData.slice(2, 66);
+  return Number(BigInt(`0x${countHex}`));
+}
+
+const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
 
 // Well-known Base Sepolia token addresses
 const USDC_ADDRESS = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
@@ -549,5 +572,309 @@ describe('NativeToken — runtimeBalance with constraints', () => {
     const nativeWithAccount = createNativeToken(publicClient, WETH_CONTRACT);
     const rv = nativeWithAccount.runtimeBalance({ constraints: [{ gte: 1n }] });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: execResult
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: execResult', () => {
+  // transfer(address,uint256) returns (bool) — 1 static output, suitable for execResult
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is EXEC_RESULT', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.EXEC_RESULT);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('two calls without a storageKey produce different slots (auto-generated key)', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult' },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult' },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('same storageKey produces the same paramData', async () => {
+    const storageKey = 77n;
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).toBe(b.outputParams[0].paramData);
+  });
+
+  it('without capture, outputParams is empty', async () => {
+    const call = await usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1_000_000n] });
+    expect(call.outputParams).toHaveLength(0);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const usdcNoAccount = createERC20Token(publicClient, USDC_ADDRESS);
+    await expect(
+      usdcNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1_000_000n],
+        capture: { type: 'execResult' },
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: staticCall
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: staticCall', () => {
+  // After transfer, capture the recipient's updated balance via a balanceOf staticCall
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+
+  const STATIC_CALL_CAPTURE = {
+    type: 'staticCall' as const,
+    abi: erc20Abi,
+    functionName: 'balanceOf' as const,
+    targetAddress: USDC_ADDRESS,
+    args: [ACCOUNT] as const,
+    storageKey: 1n,
+  };
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is STATIC_CALL', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes the targetAddress', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      USDC_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('different targetAddress produces different paramData', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: USDC_ADDRESS },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: WETH_ADDRESS },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('different staticCall args produce different paramData', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [ACCOUNT] },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [WETH_ADDRESS] },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const usdcNoAccount = createERC20Token(publicClient, USDC_ADDRESS);
+    await expect(
+      usdcNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1_000_000n],
+        capture: STATIC_CALL_CAPTURE,
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: multiple outputs (dummy view ABI)
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: multiple outputs (dummy view ABI)', () => {
+  // ERC20 transfer returns bool (1 output); use a 2-output dummy view ABI for staticCall capture
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+  const STORAGE_KEY = 55n;
+
+  it('execResult with 1 output (transfer → bool): paramData encodes count = 1', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: { type: 'execResult', storageKey: STORAGE_KEY },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(1);
+  });
+
+  it('staticCall with 2-output view ABI: outputParams still has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC_ADDRESS,
+        args: [42n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('staticCall with 2-output view ABI: fetcherType is STATIC_CALL', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC_ADDRESS,
+        args: [42n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('staticCall with 2-output view ABI: paramData encodes count = 2', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: MULTI_OUTPUT_VIEW_ABI,
+        functionName: 'multiView',
+        targetAddress: USDC_ADDRESS,
+        args: [42n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(2);
+  });
+
+  it('staticCall count differs between 1-output and 2-output view ABIs (same storageKey)', async () => {
+    const [single, multi] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          targetAddress: USDC_ADDRESS,
+          args: [ACCOUNT],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: MULTI_OUTPUT_VIEW_ABI,
+          functionName: 'multiView',
+          targetAddress: USDC_ADDRESS,
+          args: [42n],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+    ]);
+    expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(2);
   });
 });
