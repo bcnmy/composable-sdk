@@ -53,7 +53,13 @@ export const getStorageSlotKey = async (
 export const getStorageNamespace = (accountAddress: Address, callerAddress: Address): Hex =>
   keccak256(encodePacked(['address', 'address'], [accountAddress, callerAddress]));
 
-export const getStorageSlot = async (
+/**
+ * Computes the base storage slot: keccak256(encodePacked(accountAddress, callerAddress, storageKey)).
+ * The capture flow will pass the base slot to the composability module in
+ * outputParam paramData so the module can derive its own indexed slots on-chain as
+ * keccak256(encodePacked(baseSlot, uint256(i))).
+ */
+export const getBaseStorageSlot = async (
   accountAddress: Address,
   callerAddress: Address,
   storageKey?: bigint,
@@ -65,4 +71,21 @@ export const getStorageSlot = async (
   return keccak256(
     encodePacked(['address', 'address', 'uint256'], [accountAddress, callerAddress, defaultKey]),
   );
+};
+
+/**
+ * Computes the indexed storage slot for a given key and slot index.
+ * slot = keccak256(encodePacked(baseSlot, uint256(slotIndex)))
+ * Mirrors the on-chain derivation: SLOT_i = keccak256(abi.encodePacked(SLOT, uint256(i))).
+ * slotIndex defaults to 0
+ */
+export const getStorageSlot = async (
+  accountAddress: Address,
+  callerAddress: Address,
+  storageKey?: bigint,
+  slotIndex?: number,
+): Promise<Hex> => {
+  const baseSlot = await getBaseStorageSlot(accountAddress, callerAddress, storageKey);
+  if (slotIndex === undefined) return baseSlot;
+  return keccak256(encodePacked(['bytes32', 'uint256'], [baseSlot, BigInt(slotIndex)]));
 };

@@ -14,7 +14,7 @@ import {
   zeroAddress,
 } from 'viem';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
-import { getStorageSlot } from '../storage/slot';
+import { getBaseStorageSlot } from '../storage/slot';
 import type { AnyData } from '../types';
 import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
 import {
@@ -485,8 +485,14 @@ export const prepareComposableOutputCalldataParams = async <
 
   const resolvedCallerAddress = callerAddress ?? accountAddress;
 
-  // Derive the namespace storage slot from the provided key (or generate a unique default).
-  const slot: Hex = await getStorageSlot(accountAddress, resolvedCallerAddress, capture.storageKey);
+  // Derive the base storage slot from the provided key (or generate a unique default).
+  // The composability module receives this base slot and derives indexed slots from it:
+  //   slot_i = keccak256(abi.encodePacked(baseSlot, uint256(i)))
+  const slot: Hex = await getBaseStorageSlot(
+    accountAddress,
+    resolvedCallerAddress,
+    capture.storageKey,
+  );
 
   if (capture.type === 'execResult') {
     if (outputs.length === 0) {
