@@ -27,3 +27,4 @@ jobs:
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+          ZERODEV_BUNDLER_URL: ${{ secrets.ZERODEV_BUNDLER_URL }}
