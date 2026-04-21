@@ -3,7 +3,7 @@ import { getAddress, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient } from '../utils';
+import { account, initNexus, publicClient, walletClient } from '../utils';
 import { RUNTIME_TRANSFER_ABI } from './abi/runtime-transfer';
 import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 
@@ -34,10 +34,21 @@ async function ensureScaBalance(): Promise<void> {
   }
 }
 
-// Tops up the runtime transfer contract to TRANSFER_AMOUNT if it has less than that
+// Resets the runtime transfer contract balance to exactly TRANSFER_AMOUNT before each test.
+// Drains any excess (from a previously failed test that didn't sweep) back to the EOA,
+// then tops up if the balance is below TRANSFER_AMOUNT.
 async function ensureRuntimeTransferContractBalance(): Promise<void> {
+  if (!walletClient) throw new Error('PRIVATE_KEY is not set in environment');
   const balance = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
-  if (balance < TRANSFER_AMOUNT) {
+  if (balance > TRANSFER_AMOUNT) {
+    const hash = await walletClient.writeContract({
+      abi: RUNTIME_TRANSFER_ABI,
+      address: RUNTIME_TRANSFER_CONTRACT,
+      functionName: 'transferFunds',
+      args: [USDC, walletClient.account.address, balance - TRANSFER_AMOUNT],
+    });
+    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
+  } else if (balance < TRANSFER_AMOUNT) {
     await fundWithUsdc(RUNTIME_TRANSFER_CONTRACT, TRANSFER_AMOUNT - balance);
   }
 }
@@ -108,7 +119,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     // Runtime transfer contract should be swept to zero after the transfer
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
@@ -162,7 +173,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -212,7 +223,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -262,7 +273,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -312,7 +323,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);
@@ -361,7 +372,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     const contractBalanceAfter = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
     expect(contractBalanceAfter).toEqual(0n);

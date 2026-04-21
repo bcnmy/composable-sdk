@@ -60,7 +60,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
 
     // 6. Execute the signed quote and wait for the supertransaction to settle
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     // 7. Assert SCA balance has been swept to zero (minus fees)
     const scaBalanceAfter = await usdc.read({ functionName: 'balanceOf', args: [scaAddress] });
@@ -190,7 +190,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
 
     // 5. Execute the signed quote and wait for the supertransaction to settle
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     // 6. Assert the on-chain storage slot holds the value that was written in step A
     expect(await storage.read({ storageKey })).to.eq(toBytes32(storageValue));

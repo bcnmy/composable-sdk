@@ -82,7 +82,7 @@ describe('Integration — capture output params: execResult and staticCall (Base
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     expect(await storage.read({ storageKey })).to.eq(toBytes32(expectedResult));
   });
@@ -131,7 +131,7 @@ describe('Integration — capture output params: execResult and staticCall (Base
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     // Off-chain: verify all three captured slots
     expect(await storage.read({ storageKey })).to.eq(toBytes32(expectedSum));
@@ -184,7 +184,7 @@ describe('Integration — capture output params: execResult and staticCall (Base
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     expect(await storage.read({ storageKey })).to.eq(toBytes32(expectedResult));
   });
@@ -240,7 +240,7 @@ describe('Integration — capture output params: execResult and staticCall (Base
     });
 
     const { hash } = await meeClient.executeQuote({ quote });
-    await meeClient.waitForSupertransactionReceipt({ hash, mode: 'fast-block' });
+    await meeClient.waitForSupertransactionReceipt({ hash });
 
     // Off-chain: verify all three captured slots
     expect(await storage.read({ storageKey })).to.eq(toBytes32(expectedTriple));
