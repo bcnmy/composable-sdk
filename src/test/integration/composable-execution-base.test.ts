@@ -10,7 +10,6 @@ import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 if (!account) throw new Error('PRIVATE_KEY is not set in environment');
 
 const RUNTIME_TRANSFER_CONTRACT = getAddress('0x7c3b315E1d72CFdB8999A68a12e87fc3cc490fec');
-const _DUMMY_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 const TRANSFER_AMOUNT = parseUnits('1', 6); // 1 mock USDC funded into the runtime transfer contract per test
 const SCA_MIN_BALANCE = parseUnits('0.5', 6); // top up SCA if it drops below this

@@ -1,23 +1,11 @@
+import type { Abi } from 'viem';
 import { erc20Abi, getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { STORAGE_WRITE_EXAMPLE_ABI } from '../../test/integration/abi/storage-write-example';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType, OutputParamFetcherType } from '../encoding';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { createERC20Token, createNativeToken } from './token';
-
-// Dummy ABI with a view function returning 2 static outputs: (uint256, uint256)
-const MULTI_OUTPUT_VIEW_ABI = [
-  {
-    name: 'multiView',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'x', type: 'uint256' }],
-    outputs: [
-      { name: 'p', type: 'uint256' },
-      { name: 'q', type: 'uint256' },
-    ],
-  },
-] as const;
 
 // The count is the first 32 bytes of the ABI-encoded paramData (uint256, big-endian).
 function decodeOutputCount(paramData: string): number {
@@ -26,6 +14,7 @@ function decodeOutputCount(paramData: string): number {
 }
 
 const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
+const STORAGE_WRITE_EXAMPLE_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 // Well-known Base Sepolia token addresses
 const USDC_ADDRESS = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
@@ -782,11 +771,11 @@ describe('ERC20Token — write with capture: staticCall', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ERC20Token — write with capture: multiple outputs (dummy view ABI)
+// ERC20Token — write with capture: multiple outputs (storage write example)
 // ---------------------------------------------------------------------------
 
-describe('ERC20Token — write with capture: multiple outputs (dummy view ABI)', () => {
-  // ERC20 transfer returns bool (1 output); use a 2-output dummy view ABI for staticCall capture
+describe('ERC20Token — write with capture: multiple outputs (storage write example)', () => {
+  // ERC20 transfer returns bool (1 output); use multipleOutputStaticCall (3 outputs) for staticCall capture
   const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
   const STORAGE_KEY = 55n;
 
@@ -799,55 +788,55 @@ describe('ERC20Token — write with capture: multiple outputs (dummy view ABI)',
     expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(1);
   });
 
-  it('staticCall with 2-output view ABI: outputParams still has exactly 1 entry', async () => {
+  it('staticCall with 3-output staticCall function: outputParams still has exactly 1 entry', async () => {
     const call = await usdc.write({
       functionName: 'transfer',
       args: [WETH_ADDRESS, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC_ADDRESS,
-        args: [42n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
     expect(call.outputParams).toHaveLength(1);
   });
 
-  it('staticCall with 2-output view ABI: fetcherType is STATIC_CALL', async () => {
+  it('staticCall with 3-output staticCall function: fetcherType is STATIC_CALL', async () => {
     const call = await usdc.write({
       functionName: 'transfer',
       args: [WETH_ADDRESS, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC_ADDRESS,
-        args: [42n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
     expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
   });
 
-  it('staticCall with 2-output view ABI: paramData encodes count = 2', async () => {
+  it('staticCall with 3-output staticCall function: paramData encodes count = 3', async () => {
     const call = await usdc.write({
       functionName: 'transfer',
       args: [WETH_ADDRESS, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC_ADDRESS,
-        args: [42n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
-    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(2);
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(3);
   });
 
-  it('staticCall count differs between 1-output and 2-output view ABIs (same storageKey)', async () => {
+  it('staticCall count differs between 1-output and 3-output staticCall functions (same storageKey)', async () => {
     const [single, multi] = await Promise.all([
       usdc.write({
         functionName: 'transfer',
@@ -866,15 +855,15 @@ describe('ERC20Token — write with capture: multiple outputs (dummy view ABI)',
         args: [WETH_ADDRESS, 1n],
         capture: {
           type: 'staticCall',
-          abi: MULTI_OUTPUT_VIEW_ABI,
-          functionName: 'multiView',
-          targetAddress: USDC_ADDRESS,
-          args: [42n],
+          abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+          functionName: 'multipleOutputStaticCall',
+          targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+          args: [4n],
           storageKey: STORAGE_KEY,
         },
       }),
     ]);
     expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
-    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(2);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(3);
   });
 });

@@ -1,11 +1,14 @@
+import type { Abi } from 'viem';
 import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { STORAGE_WRITE_EXAMPLE_ABI } from '../../test/integration/abi/storage-write-example';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType, InputParamType, OutputParamFetcherType } from '../encoding';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { createContract } from './contract';
 
 const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
+const STORAGE_WRITE_EXAMPLE_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 // Uniswap V3 Factory on Base Sepolia
 const UNISWAP_V3_FACTORY = getAddress('0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24');
@@ -91,57 +94,6 @@ const ERC20_ABI = [
 
 // Keep backward-compat alias used in write tests below
 const ERC20_WRITE_ABI = ERC20_ABI;
-
-// Dummy ABI with a write function returning 3 static outputs: (uint256, bool, address)
-const MULTI_OUTPUT_WRITE_ABI = [
-  {
-    name: 'multiReturn',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'value', type: 'uint256' }],
-    outputs: [
-      { name: 'a', type: 'uint256' },
-      { name: 'b', type: 'bool' },
-      { name: 'c', type: 'address' },
-    ],
-  },
-] as const;
-
-// Dummy ABI with a view function returning 2 static outputs: (uint256, uint256)
-const MULTI_OUTPUT_VIEW_ABI = [
-  {
-    name: 'multiView',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'x', type: 'uint256' }],
-    outputs: [
-      { name: 'p', type: 'uint256' },
-      { name: 'q', type: 'uint256' },
-    ],
-  },
-] as const;
-
-// Dummy ABI with a write function that has a dynamic output type (bytes) — invalid for capture
-const DYNAMIC_OUTPUT_WRITE_ABI = [
-  {
-    name: 'dynamicReturn',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [],
-    outputs: [{ name: 'data', type: 'bytes' }],
-  },
-] as const;
-
-// Dummy ABI with a view function that has a dynamic output type (string) — invalid for staticCall capture
-const DYNAMIC_OUTPUT_VIEW_ABI = [
-  {
-    name: 'dynamicView',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ name: 'str', type: 'string' }],
-  },
-] as const;
 
 // Dummy ABI with a write function that returns nothing — invalid for execResult capture
 const VOID_WRITE_ABI = [
@@ -767,36 +719,41 @@ describe('contract — write with capture: staticCall', () => {
 });
 
 // ---------------------------------------------------------------------------
-// contract — write with capture: multiple outputs (dummy contract)
+// contract — write with capture: multiple outputs (storage write example)
 // ---------------------------------------------------------------------------
 
-describe('contract — write with capture: multiple outputs (dummy contract)', () => {
-  // Use USDC as a stand-in address — write() does not call the contract, only encodes
-  const dummy = createContract(publicClient, USDC, MULTI_OUTPUT_WRITE_ABI, ACCOUNT);
+describe('contract — write with capture: multiple outputs (storage write example)', () => {
+  // multipleOutput(a, b) → (sum uint256, product uint256, greater bool) — 3 static outputs
+  const storageWriteExample = createContract(
+    publicClient,
+    STORAGE_WRITE_EXAMPLE_CONTRACT,
+    STORAGE_WRITE_EXAMPLE_ABI as Abi,
+    ACCOUNT,
+  );
   const STORAGE_KEY = 42n;
 
   it('execResult with 3 outputs: outputParams still has exactly 1 entry', async () => {
-    const call = await dummy.write({
-      functionName: 'multiReturn',
-      args: [1n],
+    const call = await storageWriteExample.write({
+      functionName: 'multipleOutput',
+      args: [7n, 3n],
       capture: { type: 'execResult', storageKey: STORAGE_KEY },
     });
     expect(call.outputParams).toHaveLength(1);
   });
 
   it('execResult with 3 outputs: fetcherType is EXEC_RESULT', async () => {
-    const call = await dummy.write({
-      functionName: 'multiReturn',
-      args: [1n],
+    const call = await storageWriteExample.write({
+      functionName: 'multipleOutput',
+      args: [7n, 3n],
       capture: { type: 'execResult', storageKey: STORAGE_KEY },
     });
     expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.EXEC_RESULT);
   });
 
   it('execResult with 3 outputs: paramData encodes count = 3', async () => {
-    const call = await dummy.write({
-      functionName: 'multiReturn',
-      args: [1n],
+    const call = await storageWriteExample.write({
+      functionName: 'multipleOutput',
+      args: [7n, 3n],
       capture: { type: 'execResult', storageKey: STORAGE_KEY },
     });
     expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(3);
@@ -810,9 +767,9 @@ describe('contract — write with capture: multiple outputs (dummy contract)', (
         args: [WETH, 1n],
         capture: { type: 'execResult', storageKey: STORAGE_KEY },
       }),
-      dummy.write({
-        functionName: 'multiReturn',
-        args: [1n],
+      storageWriteExample.write({
+        functionName: 'multipleOutput',
+        args: [7n, 3n],
         capture: { type: 'execResult', storageKey: STORAGE_KEY },
       }),
     ]);
@@ -821,58 +778,58 @@ describe('contract — write with capture: multiple outputs (dummy contract)', (
     expect(single.outputParams[0].paramData).not.toBe(multi.outputParams[0].paramData);
   });
 
-  it('staticCall with 2-output view ABI: outputParams still has exactly 1 entry', async () => {
+  it('staticCall with 3-output staticCall function: outputParams still has exactly 1 entry', async () => {
     const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
     const call = await token.write({
       functionName: 'transfer',
       args: [WETH, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC,
-        args: [99n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
     expect(call.outputParams).toHaveLength(1);
   });
 
-  it('staticCall with 2-output view ABI: fetcherType is STATIC_CALL', async () => {
+  it('staticCall with 3-output staticCall function: fetcherType is STATIC_CALL', async () => {
     const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
     const call = await token.write({
       functionName: 'transfer',
       args: [WETH, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC,
-        args: [99n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
     expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
   });
 
-  it('staticCall with 2-output view ABI: paramData encodes count = 2', async () => {
+  it('staticCall with 3-output staticCall function: paramData encodes count = 3', async () => {
     const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
     const call = await token.write({
       functionName: 'transfer',
       args: [WETH, 1n],
       capture: {
         type: 'staticCall',
-        abi: MULTI_OUTPUT_VIEW_ABI,
-        functionName: 'multiView',
-        targetAddress: USDC,
-        args: [99n],
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
         storageKey: STORAGE_KEY,
       },
     });
-    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(2);
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(3);
   });
 
-  it('staticCall count differs between 1-output and 2-output view ABIs (same storageKey)', async () => {
+  it('staticCall count differs between 1-output and 3-output staticCall functions (same storageKey)', async () => {
     const token = createContract(publicClient, USDC, ERC20_ABI, ACCOUNT);
     const [single, multi] = await Promise.all([
       token.write({
@@ -892,16 +849,16 @@ describe('contract — write with capture: multiple outputs (dummy contract)', (
         args: [WETH, 1n],
         capture: {
           type: 'staticCall',
-          abi: MULTI_OUTPUT_VIEW_ABI,
-          functionName: 'multiView',
-          targetAddress: USDC,
-          args: [99n],
+          abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+          functionName: 'multipleOutputStaticCall',
+          targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+          args: [4n],
           storageKey: STORAGE_KEY,
         },
       }),
     ]);
     expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
-    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(2);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(3);
   });
 });
 
@@ -923,15 +880,20 @@ describe('contract — write with capture: error cases', () => {
     ).rejects.toThrow('capture execResult: the function has no return values to capture');
   });
 
-  it('execResult throws when write function returns a dynamic type (bytes)', async () => {
-    const contract = createContract(publicClient, USDC, DYNAMIC_OUTPUT_WRITE_ABI, ACCOUNT);
+  it('execResult throws when write function returns a dynamic type (string)', async () => {
+    const contract = createContract(
+      publicClient,
+      STORAGE_WRITE_EXAMPLE_CONTRACT,
+      STORAGE_WRITE_EXAMPLE_ABI as Abi,
+      ACCOUNT,
+    );
     await expect(
       contract.write({
-        functionName: 'dynamicReturn',
-        args: [],
+        functionName: 'oneOutputString',
+        args: [1n],
         capture: { type: 'execResult', storageKey: STORAGE_KEY },
       }),
-    ).rejects.toThrow('capture execResult: return value at index 0 has dynamic type "bytes"');
+    ).rejects.toThrow('capture execResult: return value at index 0 has dynamic type "string"');
   });
 
   it('staticCall throws when view function has no return values', async () => {
@@ -962,10 +924,10 @@ describe('contract — write with capture: error cases', () => {
         args: [WETH, 1n],
         capture: {
           type: 'staticCall',
-          abi: DYNAMIC_OUTPUT_VIEW_ABI,
-          functionName: 'dynamicView',
-          targetAddress: USDC,
-          args: [],
+          abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+          functionName: 'oneOutputStringStaticCall',
+          targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+          args: [1n],
           storageKey: STORAGE_KEY,
         },
       }),
