@@ -1,16 +1,9 @@
-import {
-  type Address,
-  type Chain,
-  encodePacked,
-  type Hex,
-  keccak256,
-  type PublicClient,
-  type Transport,
-} from 'viem';
+import type { Address, Chain, PublicClient, Transport } from 'viem';
 import { createContract } from '../contract';
 import { toBytes32 } from '../encoding/utils';
 import { NAMESPACE_STORAGE_ABI } from './abi';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from './constants';
+import { getStorageNamespace, getStorageSlot, getStorageSlotKey } from './slot';
 import type {
   CheckStorageParams,
   GetStorageKeyParams,
@@ -19,70 +12,6 @@ import type {
   StorageInstance,
   WriteStorageParams,
 } from './types';
-
-// ---------------------------------------------------------------------------
-// Slot + namespace helpers
-// ---------------------------------------------------------------------------
-
-class NamespaceStorageKeyManager {
-  private static instance: NamespaceStorageKeyManager;
-  private isNameSpaceStorageSlotKeyBeingCalculated = new Map<string, boolean>();
-
-  private constructor() {}
-
-  public static getInstance(): NamespaceStorageKeyManager {
-    if (!NamespaceStorageKeyManager.instance) {
-      NamespaceStorageKeyManager.instance = new NamespaceStorageKeyManager();
-    }
-    return NamespaceStorageKeyManager.instance;
-  }
-
-  // This function always make sure to provide a unique storage key.
-  // This is helpful to reduce storage slot collusion
-  public async getDefaultStorageSlotKey(
-    accountAddress: Address,
-    callerAddress: Address,
-  ): Promise<bigint> {
-    const storeKey = `${accountAddress.toLowerCase()}::${callerAddress.toLowerCase()}`;
-
-    while (this.isNameSpaceStorageSlotKeyBeingCalculated.get(storeKey)) {
-      await new Promise((resolve) => setTimeout(resolve, 1)); // wait for 1 ms if another key is being calculated
-    }
-
-    this.isNameSpaceStorageSlotKeyBeingCalculated.set(storeKey, true);
-    const key = BigInt(Date.now());
-
-    await new Promise((resolve) => setTimeout(resolve, 1)); // ensure next call is in the next millisecond
-    this.isNameSpaceStorageSlotKeyBeingCalculated.set(storeKey, false);
-
-    return key;
-  }
-}
-
-export const getStorageNamespace = (accountAddress: Address, callerAddress: Address): Hex =>
-  keccak256(encodePacked(['address', 'address'], [accountAddress, callerAddress]));
-
-export const getStorageSlot = async (
-  accountAddress: Address,
-  callerAddress: Address,
-  storageKey?: bigint,
-): Promise<Hex> => {
-  const manager = NamespaceStorageKeyManager.getInstance();
-  const defaultStorageKey = await manager.getDefaultStorageSlotKey(accountAddress, callerAddress);
-  const defaultKey = storageKey ?? defaultStorageKey;
-
-  return keccak256(
-    encodePacked(
-      ['address', 'address', 'uint256'],
-      [
-        accountAddress,
-        callerAddress,
-        // Unique timestamp for each slot so that slots are unique for every new request / flow
-        defaultKey,
-      ],
-    ),
-  );
-};
 
 // ---------------------------------------------------------------------------
 // StorageInstance factory
@@ -96,6 +25,7 @@ export function createStorage<
     publicClient,
     NAMESPACE_STORAGE_CONTRACT_ADDRESS,
     NAMESPACE_STORAGE_ABI,
+    accountAddress,
   );
 
   return {
@@ -107,19 +37,24 @@ export function createStorage<
     }: GetStorageKeyParams = {}) {
       const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
-      const manager = NamespaceStorageKeyManager.getInstance();
-      return manager.getDefaultStorageSlotKey(resolvedAccountAddress, resolvedCallerAddress);
+      return getStorageSlotKey(resolvedAccountAddress, resolvedCallerAddress);
     },
 
     async read({
       storageKey,
+      slotIndex = 0,
       accountAddress: accountAddressOverride,
       callerAddress: callerAddressOverride,
     }: ReadStorageParams = {}) {
       const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
 
-      const slot = await getStorageSlot(resolvedAccountAddress, resolvedCallerAddress, storageKey);
+      const slot = await getStorageSlot(
+        resolvedAccountAddress,
+        resolvedCallerAddress,
+        storageKey,
+        slotIndex,
+      );
       const namespace = getStorageNamespace(resolvedAccountAddress, resolvedCallerAddress);
 
       return contractInstance.read({
@@ -131,13 +66,19 @@ export function createStorage<
     async write({
       value,
       storageKey,
+      slotIndex = 0,
       accountAddress: accountAddressOverride,
       callerAddress: callerAddressOverride,
     }: WriteStorageParams) {
       const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
 
-      const slot = await getStorageSlot(resolvedAccountAddress, resolvedCallerAddress, storageKey);
+      const slot = await getStorageSlot(
+        resolvedAccountAddress,
+        resolvedCallerAddress,
+        storageKey,
+        slotIndex,
+      );
 
       return contractInstance.write({
         functionName: 'writeStorage',
@@ -148,13 +89,19 @@ export function createStorage<
     async runtimeValue({
       constraints,
       storageKey,
+      slotIndex = 0,
       accountAddress: accountAddressOverride,
       callerAddress: callerAddressOverride,
     }: RuntimeValueStorageParams = {}) {
       const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
 
-      const slot = await getStorageSlot(resolvedAccountAddress, resolvedCallerAddress, storageKey);
+      const slot = await getStorageSlot(
+        resolvedAccountAddress,
+        resolvedCallerAddress,
+        storageKey,
+        slotIndex,
+      );
       const namespace = getStorageNamespace(resolvedAccountAddress, resolvedCallerAddress);
 
       return contractInstance.runtimeValue({
@@ -167,13 +114,19 @@ export function createStorage<
     async check({
       constraints,
       storageKey,
+      slotIndex = 0,
       accountAddress: accountAddressOverride,
       callerAddress: callerAddressOverride,
     }: CheckStorageParams) {
       const resolvedAccountAddress = accountAddressOverride ?? accountAddress;
       const resolvedCallerAddress = callerAddressOverride ?? resolvedAccountAddress;
 
-      const slot = await getStorageSlot(resolvedAccountAddress, resolvedCallerAddress, storageKey);
+      const slot = await getStorageSlot(
+        resolvedAccountAddress,
+        resolvedCallerAddress,
+        storageKey,
+        slotIndex,
+      );
       const namespace = getStorageNamespace(resolvedAccountAddress, resolvedCallerAddress);
 
       return contractInstance.check({

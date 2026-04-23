@@ -5,6 +5,7 @@ import type { Bytes32SupportedType } from '../encoding/utils';
 export interface WriteStorageParams {
   value: Bytes32SupportedType;
   storageKey?: bigint;
+  slotIndex?: number;
   accountAddress?: Address;
   callerAddress?: Address;
 }
@@ -12,6 +13,7 @@ export interface WriteStorageParams {
 export interface RuntimeValueStorageParams {
   constraints?: RuntimeConstraint[];
   storageKey?: bigint;
+  slotIndex?: number;
   accountAddress?: Address;
   callerAddress?: Address;
 }
@@ -19,12 +21,14 @@ export interface RuntimeValueStorageParams {
 export interface CheckStorageParams {
   constraints: RuntimeConstraint[];
   storageKey?: bigint;
+  slotIndex?: number;
   accountAddress?: Address;
   callerAddress?: Address;
 }
 
 export interface ReadStorageParams {
   storageKey?: bigint;
+  slotIndex?: number;
   accountAddress?: Address;
   callerAddress?: Address;
 }

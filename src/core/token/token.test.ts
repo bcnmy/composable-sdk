@@ -1,8 +1,20 @@
-import { getAddress } from 'viem';
+import type { Abi } from 'viem';
+import { erc20Abi, getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
+import { STORAGE_WRITE_EXAMPLE_ABI } from '../../test/integration/abi/storage-write-example';
 import { publicClient } from '../../test/utils';
-import { InputParamFetcherType } from '../encoding';
+import { InputParamFetcherType, OutputParamFetcherType } from '../encoding';
+import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { createERC20Token, createNativeToken } from './token';
+
+// The count is the first 32 bytes of the ABI-encoded paramData (uint256, big-endian).
+function decodeOutputCount(paramData: string): number {
+  const countHex = paramData.slice(2, 66);
+  return Number(BigInt(`0x${countHex}`));
+}
+
+const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
+const STORAGE_WRITE_EXAMPLE_CONTRACT = getAddress('0xEfDE41e2f93F2F0b231a010ddC35c9B8125f17bA');
 
 // Well-known Base Sepolia token addresses
 const USDC_ADDRESS = getAddress('0x036CbD53842c5426634e7929541eC2318f3dCF7e');
@@ -466,51 +478,60 @@ describe('ERC20Token — check', () => {
 describe('ERC20Token — write', () => {
   const usdc = createERC20Token(publicClient, USDC_ADDRESS);
 
-  it('write(transfer) returns a ComposableCall object', () => {
-    const call = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call).toBe('object');
-  });
-
-  it('write(transfer) has a functionSig', () => {
-    const call = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call.functionSig).toBe('string');
-    expect(call.functionSig.length).toBeGreaterThan(0);
-  });
-
-  it('write(approve) has a functionSig', () => {
-    const call = usdc.write({ functionName: 'approve', args: [UNISWAP_V3_ROUTER, 1_000_000n] });
-    expect(typeof call.functionSig).toBe('string');
-    expect(call.functionSig.length).toBeGreaterThan(0);
-  });
-
-  it('write(transfer) and write(approve) produce different functionSigs', () => {
-    const transfer = usdc.write({
+  it('write(transfer) returns a ComposableCall object', async () => {
+    const call = await usdc.write({
       functionName: 'transfer',
       args: [UNISWAP_V3_ROUTER, 1_000_000n],
     });
-    const approve = usdc.write({
+    expect(typeof call).toBe('object');
+  });
+
+  it('write(transfer) has a functionSig', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [UNISWAP_V3_ROUTER, 1_000_000n],
+    });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('write(approve) has a functionSig', async () => {
+    const call = await usdc.write({
       functionName: 'approve',
       args: [UNISWAP_V3_ROUTER, 1_000_000n],
     });
+    expect(typeof call.functionSig).toBe('string');
+    expect(call.functionSig.length).toBeGreaterThan(0);
+  });
+
+  it('write(transfer) and write(approve) produce different functionSigs', async () => {
+    const [transfer, approve] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1_000_000n] }),
+      usdc.write({ functionName: 'approve', args: [UNISWAP_V3_ROUTER, 1_000_000n] }),
+    ]);
     expect(transfer.functionSig).not.toBe(approve.functionSig);
   });
 
-  it('write(transfer) accepts a runtimeBalance() as the amount arg', () => {
+  it('write(transfer) accepts a runtimeBalance() as the amount arg', async () => {
     const rv = usdc.runtimeBalance({ owner: UNISWAP_V3_ROUTER });
-    const call = usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, rv] });
+    const call = await usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, rv] });
     expect(typeof call).toBe('object');
     expect(call.functionSig).toBeDefined();
   });
 
-  it('write(transfer) produces different inputParams for different amounts', () => {
-    const a = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] });
-    const b = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 2n] });
+  it('write(transfer) produces different inputParams for different amounts', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] }),
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 2n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 
-  it('write(transfer) produces different inputParams for different recipients', () => {
-    const a = usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] });
-    const b = usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1n] });
+  it('write(transfer) produces different inputParams for different recipients', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({ functionName: 'transfer', args: [UNISWAP_V3_ROUTER, 1n] }),
+      usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1n] }),
+    ]);
     expect(JSON.stringify(a.inputParams)).not.toBe(JSON.stringify(b.inputParams));
   });
 });
@@ -540,5 +561,309 @@ describe('NativeToken — runtimeBalance with constraints', () => {
     const nativeWithAccount = createNativeToken(publicClient, WETH_CONTRACT);
     const rv = nativeWithAccount.runtimeBalance({ constraints: [{ gte: 1n }] });
     expect(rv.inputParams[0].constraints).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: execResult
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: execResult', () => {
+  // transfer(address,uint256) returns (bool) — 1 static output, suitable for execResult
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is EXEC_RESULT', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.EXEC_RESULT);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: { type: 'execResult' },
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('two calls without a storageKey produce different slots (auto-generated key)', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult' },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult' },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('same storageKey produces the same paramData', async () => {
+    const storageKey = 77n;
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { type: 'execResult', storageKey },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).toBe(b.outputParams[0].paramData);
+  });
+
+  it('without capture, outputParams is empty', async () => {
+    const call = await usdc.write({ functionName: 'transfer', args: [WETH_ADDRESS, 1_000_000n] });
+    expect(call.outputParams).toHaveLength(0);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const usdcNoAccount = createERC20Token(publicClient, USDC_ADDRESS);
+    await expect(
+      usdcNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1_000_000n],
+        capture: { type: 'execResult' },
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: staticCall
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: staticCall', () => {
+  // After transfer, capture the recipient's updated balance via a balanceOf staticCall
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+
+  const STATIC_CALL_CAPTURE = {
+    type: 'staticCall' as const,
+    abi: erc20Abi,
+    functionName: 'balanceOf' as const,
+    targetAddress: USDC_ADDRESS,
+    args: [ACCOUNT] as const,
+    storageKey: 1n,
+  };
+
+  it('outputParams has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('fetcherType is STATIC_CALL', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('paramData is a hex string', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData).toMatch(/^0x[0-9a-fA-F]+$/);
+  });
+
+  it('paramData encodes the targetAddress', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      USDC_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('paramData encodes NAMESPACE_STORAGE_CONTRACT_ADDRESS', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1_000_000n],
+      capture: STATIC_CALL_CAPTURE,
+    });
+    expect(call.outputParams[0].paramData.toLowerCase()).toContain(
+      NAMESPACE_STORAGE_CONTRACT_ADDRESS.slice(2).toLowerCase(),
+    );
+  });
+
+  it('different targetAddress produces different paramData', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: USDC_ADDRESS },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, targetAddress: WETH_ADDRESS },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('different staticCall args produce different paramData', async () => {
+    const [a, b] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [ACCOUNT] },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: { ...STATIC_CALL_CAPTURE, args: [WETH_ADDRESS] },
+      }),
+    ]);
+    expect(a.outputParams[0].paramData).not.toBe(b.outputParams[0].paramData);
+  });
+
+  it('throws when accountAddress is omitted', async () => {
+    const usdcNoAccount = createERC20Token(publicClient, USDC_ADDRESS);
+    await expect(
+      usdcNoAccount.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1_000_000n],
+        capture: STATIC_CALL_CAPTURE,
+      }),
+    ).rejects.toThrow('capture requires an accountAddress');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ERC20Token — write with capture: multiple outputs (storage write example)
+// ---------------------------------------------------------------------------
+
+describe('ERC20Token — write with capture: multiple outputs (storage write example)', () => {
+  // ERC20 transfer returns bool (1 output); use multipleOutputStaticCall (3 outputs) for staticCall capture
+  const usdc = createERC20Token(publicClient, USDC_ADDRESS, ACCOUNT);
+  const STORAGE_KEY = 55n;
+
+  it('execResult with 1 output (transfer → bool): paramData encodes count = 1', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: { type: 'execResult', storageKey: STORAGE_KEY },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(1);
+  });
+
+  it('staticCall with 3-output staticCall function: outputParams still has exactly 1 entry', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams).toHaveLength(1);
+  });
+
+  it('staticCall with 3-output staticCall function: fetcherType is STATIC_CALL', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(call.outputParams[0].fetcherType).toBe(OutputParamFetcherType.STATIC_CALL);
+  });
+
+  it('staticCall with 3-output staticCall function: paramData encodes count = 3', async () => {
+    const call = await usdc.write({
+      functionName: 'transfer',
+      args: [WETH_ADDRESS, 1n],
+      capture: {
+        type: 'staticCall',
+        abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+        functionName: 'multipleOutputStaticCall',
+        targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+        args: [4n],
+        storageKey: STORAGE_KEY,
+      },
+    });
+    expect(decodeOutputCount(call.outputParams[0].paramData)).toBe(3);
+  });
+
+  it('staticCall count differs between 1-output and 3-output staticCall functions (same storageKey)', async () => {
+    const [single, multi] = await Promise.all([
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          targetAddress: USDC_ADDRESS,
+          args: [ACCOUNT],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+      usdc.write({
+        functionName: 'transfer',
+        args: [WETH_ADDRESS, 1n],
+        capture: {
+          type: 'staticCall',
+          abi: STORAGE_WRITE_EXAMPLE_ABI as Abi,
+          functionName: 'multipleOutputStaticCall',
+          targetAddress: STORAGE_WRITE_EXAMPLE_CONTRACT,
+          args: [4n],
+          storageKey: STORAGE_KEY,
+        },
+      }),
+    ]);
+    expect(decodeOutputCount(single.outputParams[0].paramData)).toBe(1);
+    expect(decodeOutputCount(multi.outputParams[0].paramData)).toBe(3);
   });
 });

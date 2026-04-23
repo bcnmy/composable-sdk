@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { publicClient } from '../../test/utils';
 import { InputParamFetcherType, InputParamType } from '../encoding';
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from './constants';
-import { createStorage, getStorageNamespace, getStorageSlot } from './storage';
+import { getStorageNamespace, getStorageSlot } from './slot';
+import { createStorage } from './storage';
 
 // Arbitrary stable addresses used as account / caller throughout tests
 const ACCOUNT = getAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'); // vitalik.eth

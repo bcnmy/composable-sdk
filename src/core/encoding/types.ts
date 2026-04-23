@@ -1,4 +1,11 @@
-import type { Abi, AbiParameter, Address, Hex } from 'viem';
+import type {
+  Abi,
+  AbiParameter,
+  Address,
+  ContractFunctionArgs,
+  ContractFunctionName,
+  Hex,
+} from 'viem';
 import type { AnyData } from '../types';
 
 /**
@@ -138,3 +145,34 @@ export interface RuntimeValue {
   inputParams: InputParam[];
   outputParams: OutputParam[];
 }
+
+/**
+ * Describes how to capture the output of a composable write call via an OutputParam.
+ *
+ * - `execResult` — captures the return value(s) of the executed call itself.
+ *   All return types must be static ABI types; dynamic types (bytes, string, T[]) are not supported.
+ *   `storageKey` (optional) — namespace storage key (bigint) passed to `getStorageSlot` to derive the
+ *   storage slot. When omitted a unique slot is generated automatically.
+ *
+ * - `staticCall` — captures a value by making a separate static call after execution.
+ *   `functionName`, `abi`, `targetAddress`, `args` — define the static call.
+ *   All return types of the static call must be static ABI types.
+ *   `storageKey` (optional) — namespace storage key (bigint) passed to `getStorageSlot` to derive the
+ *   storage slot. When omitted a unique slot is generated automatically.
+ */
+export type Capture<
+  TAbi extends Abi | readonly unknown[] = Abi,
+  TFunctionName extends ContractFunctionName<TAbi, 'pure' | 'view'> = ContractFunctionName<
+    TAbi,
+    'pure' | 'view'
+  >,
+> =
+  | { type: 'execResult'; storageKey?: bigint }
+  | {
+      type: 'staticCall';
+      storageKey?: bigint;
+      abi: TAbi;
+      functionName: TFunctionName;
+      targetAddress: Address;
+      args: ContractFunctionArgs<TAbi, 'pure' | 'view', TFunctionName>;
+    };

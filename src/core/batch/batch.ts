@@ -12,13 +12,17 @@ export function createComposableBatch<
   publicClient: PublicClient<TTransport, TChain>,
   accountAddress: Address,
 ): ComposableBatchInstance<TTransport, TChain> {
-  const calls: ComposableCall[] = [];
+  const pendingCalls: (ComposableCall | Promise<ComposableCall>)[] = [];
+
+  async function build(): Promise<ComposableCall[]> {
+    return Promise.all(pendingCalls);
+  }
 
   return {
     publicClient,
     accountAddress,
     get length() {
-      return calls.length;
+      return pendingCalls.length;
     },
     erc20Token(tokenAddress) {
       return createERC20Token(publicClient, tokenAddress, accountAddress);
@@ -27,26 +31,26 @@ export function createComposableBatch<
       return createNativeToken(publicClient, accountAddress);
     },
     contract(address, abi) {
-      return createContract(publicClient, address, abi);
+      return createContract(publicClient, address, abi, accountAddress);
     },
     storage() {
       return createStorage(publicClient, accountAddress);
     },
-    get calls() {
-      return [...calls];
-    },
     add(call) {
       if (Array.isArray(call)) {
-        calls.push(...call);
+        pendingCalls.push(...call);
       } else {
-        calls.push(call);
+        pendingCalls.push(call);
       }
     },
     clear() {
-      calls.length = 0;
+      pendingCalls.length = 0;
     },
-    toCalldata() {
-      return encodeExecuteComposable(calls);
+    async toCalls() {
+      return build();
+    },
+    async toCalldata() {
+      return encodeExecuteComposable(await build());
     },
   };
 }

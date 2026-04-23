@@ -1,15 +1,14 @@
-import { erc20Abi, getAddress, parseUnits } from 'viem';
+import type { Address } from 'viem';
+import { getAddress, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient, USDC_ADDRESS, walletClient } from '../utils';
+import { account, initNexus, publicClient, walletClient } from '../utils';
 import { RUNTIME_TRANSFER_ABI } from './abi/runtime-transfer';
+import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 
-if (!account || !walletClient) throw new Error('PRIVATE_KEY is not set in environment');
+if (!account) throw new Error('PRIVATE_KEY is not set in environment');
 
-const _walletClient = walletClient;
-
-const USDC = getAddress(USDC_ADDRESS);
 const RUNTIME_TRANSFER_CONTRACT = getAddress('0x7c3b315E1d72CFdB8999A68a12e87fc3cc490fec');
 
 const TRANSFER_AMOUNT = parseUnits('1', 6); // 1 mock USDC funded into the runtime transfer contract per test
@@ -20,32 +19,12 @@ const SCA_TARGET_BALANCE = parseUnits('1', 6); // top up SCA to this amount
 // Shared Nexus state — initialised once for the whole suite
 // ---------------------------------------------------------------------------
 
-let scaAddress: string;
+let scaAddress: Address;
 let meeClient: Awaited<ReturnType<typeof initNexus>>['meeClient'];
 
 // ---------------------------------------------------------------------------
-// Funding helpers
+// Top-up helpers (specific to this suite's balance thresholds)
 // ---------------------------------------------------------------------------
-
-async function fundWithUsdc(recipient: string, amount: bigint): Promise<void> {
-  const hash = await _walletClient.writeContract({
-    abi: erc20Abi,
-    address: USDC,
-    functionName: 'transfer',
-    args: [recipient, amount],
-  });
-
-  await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
-}
-
-async function usdcBalanceOf(address: string): Promise<bigint> {
-  return publicClient.readContract({
-    abi: erc20Abi,
-    address: USDC,
-    functionName: 'balanceOf',
-    args: [address as `0x${string}`],
-  });
-}
 
 // Tops up SCA to SCA_TARGET_BALANCE if its balance has dropped below SCA_MIN_BALANCE
 async function ensureScaBalance(): Promise<void> {
@@ -55,10 +34,21 @@ async function ensureScaBalance(): Promise<void> {
   }
 }
 
-// Tops up the runtime transfer contract to TRANSFER_AMOUNT if it has less than that
+// Resets the runtime transfer contract balance to exactly TRANSFER_AMOUNT before each test.
+// Drains any excess (from a previously failed test that didn't sweep) back to the EOA,
+// then tops up if the balance is below TRANSFER_AMOUNT.
 async function ensureRuntimeTransferContractBalance(): Promise<void> {
+  if (!walletClient) throw new Error('PRIVATE_KEY is not set in environment');
   const balance = await usdcBalanceOf(RUNTIME_TRANSFER_CONTRACT);
-  if (balance < TRANSFER_AMOUNT) {
+  if (balance > TRANSFER_AMOUNT) {
+    const hash = await walletClient.writeContract({
+      abi: RUNTIME_TRANSFER_ABI,
+      address: RUNTIME_TRANSFER_CONTRACT,
+      functionName: 'transferFunds',
+      args: [USDC, walletClient.account.address, balance - TRANSFER_AMOUNT],
+    });
+    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
+  } else if (balance < TRANSFER_AMOUNT) {
     await fundWithUsdc(RUNTIME_TRANSFER_CONTRACT, TRANSFER_AMOUNT - balance);
   }
 }
@@ -123,7 +113,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -177,7 +167,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -227,7 +217,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -277,7 +267,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -327,7 +317,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -376,7 +366,7 @@ describe('Integration — composable execution via runtime transfer contract (Ba
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: batch.calls, chainId: baseSepolia.id, isComposable: true }],
+      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });

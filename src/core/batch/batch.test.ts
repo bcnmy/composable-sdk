@@ -132,21 +132,17 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
 
   it('add(single call) increments length by 1', () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
-    const call = batch
-      .contract(USDC, erc20Abi)
-      .write({ functionName: 'transfer', args: [WETH, 1n] });
-    batch.add(call);
+    batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
     expect(batch.length).toBe(1);
   });
 
   it('add(array of calls) increments length by the array size', () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
-    const calls = [
+    batch.add([
       token.write({ functionName: 'transfer', args: [WETH, 1n] }),
       token.write({ functionName: 'approve', args: [WETH, 1n] }),
-    ];
-    batch.add(calls);
+    ]);
     expect(batch.length).toBe(2);
   });
 
@@ -160,22 +156,16 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
 
   it('clear() resets length to 0', () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
-    const call = batch
-      .contract(USDC, erc20Abi)
-      .write({ functionName: 'transfer', args: [WETH, 1n] });
-    batch.add(call);
+    batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.clear();
     expect(batch.length).toBe(0);
   });
 
   it('toCalldata() returns a hex string', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
-    const call = batch
-      .contract(USDC, erc20Abi)
-      .write({ functionName: 'transfer', args: [WETH, 1n] });
-    batch.add(call);
-    const calldata = await batch.toCalldata();
-    expect(calldata).toMatch(/^0x[0-9a-fA-F]+$/);
+    batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
+
+    expect(await batch.toCalldata()).toMatch(/^0x[0-9a-fA-F]+$/);
   });
 
   it('toCalldata() with multiple calls returns a hex string', async () => {
@@ -183,15 +173,16 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
     const token = batch.contract(USDC, erc20Abi);
     batch.add(token.write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.add(token.write({ functionName: 'approve', args: [WETH, 1_000_000n] }));
-    const calldata = await batch.toCalldata();
-    expect(calldata).toMatch(/^0x[0-9a-fA-F]+$/);
+
+    expect(await batch.toCalldata()).toMatch(/^0x[0-9a-fA-F]+$/);
   });
 
   it('toCalldata() produces different output for different calls', async () => {
     const batchA = createComposableBatch(publicClient, ACCOUNT);
     const batchB = createComposableBatch(publicClient, ACCOUNT);
-    const token = batchA.contract(USDC, erc20Abi);
-    batchA.add(token.write({ functionName: 'transfer', args: [WETH, 1n] }));
+    batchA.add(
+      batchA.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }),
+    );
     batchB.add(
       batchB.contract(USDC, erc20Abi).write({ functionName: 'approve', args: [WETH, 1n] }),
     );
@@ -201,48 +192,49 @@ describe('ComposableBatch — add, length, clear, toCalldata', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ComposableBatch — calls getter
+// ComposableBatch — toCalls
 // ---------------------------------------------------------------------------
 
-describe('ComposableBatch — calls getter', () => {
-  it('calls is empty on a fresh batch', () => {
+describe('ComposableBatch — toCalls', () => {
+  it('toCalls() returns empty array on a fresh batch', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
-    expect(batch.calls).toHaveLength(0);
+    expect(await batch.toCalls()).toHaveLength(0);
   });
 
-  it('calls reflects added single call', () => {
+  it('toCalls() reflects a single added call', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
-    const call = batch
+    const writePromise = batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1n] });
-    batch.add(call);
-    expect(batch.calls).toHaveLength(1);
-    expect(batch.calls[0].functionSig).toBe(call.functionSig);
+    batch.add(writePromise);
+    const calls = await batch.toCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].functionSig).toBe((await writePromise).functionSig);
   });
 
-  it('calls reflects added array of calls', () => {
+  it('toCalls() reflects an added array of calls', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
     const token = batch.contract(USDC, erc20Abi);
     batch.add([
       token.write({ functionName: 'transfer', args: [WETH, 1n] }),
       token.write({ functionName: 'approve', args: [WETH, 1n] }),
     ]);
-    expect(batch.calls).toHaveLength(2);
+    expect(await batch.toCalls()).toHaveLength(2);
   });
 
-  it('calls is empty after clear()', () => {
+  it('toCalls() returns empty array after clear()', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
     batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
     batch.clear();
-    expect(batch.calls).toHaveLength(0);
+    expect(await batch.toCalls()).toHaveLength(0);
   });
 
-  it('calls returns a copy — mutating it does not affect the batch', () => {
+  it('toCalls() returns a copy — mutating it does not affect the batch', async () => {
     const batch = createComposableBatch(publicClient, ACCOUNT);
     batch.add(batch.contract(USDC, erc20Abi).write({ functionName: 'transfer', args: [WETH, 1n] }));
-    const snapshot = batch.calls;
+    const snapshot = await batch.toCalls();
     snapshot.pop();
-    expect(batch.calls).toHaveLength(1);
+    expect(await batch.toCalls()).toHaveLength(1);
   });
 });
 
@@ -273,8 +265,8 @@ describe('ComposableBatch — contract', () => {
     expect(rv.inputParams[0].fetcherType).toBe(InputParamFetcherType.STATIC_CALL);
   });
 
-  it('write returns a ComposableCall', () => {
-    const call = batch
+  it('write returns a ComposableCall', async () => {
+    const call = await batch
       .contract(USDC, erc20Abi)
       .write({ functionName: 'transfer', args: [WETH, 1_000_000n] });
     expect(typeof call).toBe('object');

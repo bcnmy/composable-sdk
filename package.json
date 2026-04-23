@@ -19,6 +19,8 @@
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@types/bun": "latest",
+    "@zerodev/ecdsa-validator": "^5.4.9",
+    "@zerodev/sdk": "^5.5.10",
     "vitest": "^4.1.2"
   },
   "peerDependencies": {

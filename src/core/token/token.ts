@@ -27,7 +27,7 @@ export function createERC20Token<
   address: Address,
   accountAddress?: Address,
 ): ERC20TokenInstance {
-  const contractInstance = createContract(publicClient, address, erc20Abi);
+  const contractInstance = createContract(publicClient, address, erc20Abi, accountAddress);
 
   return {
     address,
@@ -35,8 +35,8 @@ export function createERC20Token<
     read({ functionName, args }) {
       return publicClient.readContract({ abi: erc20Abi, address, functionName, args });
     },
-    write({ functionName, args, value }) {
-      return contractInstance.write({ functionName, args, value });
+    write({ functionName, args, value, capture }) {
+      return contractInstance.write({ functionName, args, value, capture });
     },
     check({ functionName, args, constraints }) {
       return contractInstance.check({ functionName, args, constraints });
