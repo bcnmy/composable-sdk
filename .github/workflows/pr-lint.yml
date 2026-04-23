@@ -1,0 +1,19 @@
+name: PR Lint
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+
+jobs:
+  pr-lint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Lint PR title
+        run: echo "${{ github.event.pull_request.title }}" | bun commitlint
