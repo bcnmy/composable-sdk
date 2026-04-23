@@ -25,6 +25,7 @@ With composable transactions, you describe what should happen — not just what 
 - [Storage Writes](#storage-writes)
   - [Capture and runtime read](#capture-and-runtime-read)
   - [Explicit write and runtime read](#explicit-write-and-runtime-read)
+- [SDK Reference](#sdk-reference)
 
 ---
 
@@ -623,3 +624,16 @@ const stored = await storage.read({ storageKey });
 ```
 
 `storage.getStorageKey()` returns a unique `bigint` key each time it is called, so multiple storage slots within the same batch never collide.
+
+---
+
+## SDK Reference
+
+Detailed SDK reference for each module — all parameters, return types, and focused examples.
+
+| Module | Description |
+|---|---|
+| [Batch](./docs/batch.md) | `createComposableBatch` — the entry point. Building, assembling, and serialising a composable batch. |
+| [Token](./docs/token.md) | `ERC20TokenInstance` and `NativeTokenInstance` — reads, writes, runtime balances, and allowances. |
+| [Contract](./docs/contract.md) | `ContractInstance` — generic contract reads, composable writes, runtime values, captures, and checks. |
+| [Storage](./docs/storage.md) | `StorageInstance` — namespace storage reads, writes, runtime values, checks, and slot indexing. |
