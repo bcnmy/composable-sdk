@@ -64,6 +64,8 @@ export const ConstraintType = {
   GTE: 1,
   LTE: 2,
   IN: 3,
+  GTE_SIGNED: 4,
+  LTE_SIGNED: 5,
 } as const;
 
 export type InputParamFetcherType =
@@ -107,7 +109,9 @@ type ConstraintValue = bigint | boolean | Hex | Address;
 export type RuntimeConstraint =
   | { gte: ConstraintValue }
   | { lte: ConstraintValue }
-  | { eq: ConstraintValue };
+  | { eq: ConstraintValue }
+  | { gteSigned: bigint }
+  | { lteSigned: bigint };
 
 export interface RuntimeParamViaCustomStaticCallParams {
   targetContractAddress: Address;

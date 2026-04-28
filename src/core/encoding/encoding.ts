@@ -79,6 +79,16 @@ export const equalTo = (value: AnyData): ConstraintField => {
   return { type: ConstraintType.EQ, value };
 };
 
+// type any is being implicitly used. The appropriate value validation happens in the runtime function
+export const greaterThanOrEqualToSigned = (value: AnyData): ConstraintField => {
+  return { type: ConstraintType.GTE_SIGNED, value };
+};
+
+// type any is being implicitly used. The appropriate value validation happens in the runtime function
+export const lessThanOrEqualToSigned = (value: AnyData): ConstraintField => {
+  return { type: ConstraintType.LTE_SIGNED, value };
+};
+
 export const runtimeParamViaCustomStaticCall = ({
   targetContractAddress,
   functionAbi,
@@ -203,35 +213,65 @@ const getBalanceOf = ({
  * @param constraints - Array of constraint fields to validate and process
  * @returns Array of processed constraints ready for use
  */
+const SIGNED_CONSTRAINT_TYPES = new Set<ConstraintType>([
+  ConstraintType.GTE_SIGNED,
+  ConstraintType.LTE_SIGNED,
+]);
+
+const ALLOWED_CONSTRAINT_TYPES = new Set<ConstraintType>([
+  ConstraintType.EQ,
+  ConstraintType.GTE,
+  ConstraintType.LTE,
+  ConstraintType.GTE_SIGNED,
+  ConstraintType.LTE_SIGNED,
+]);
+
 export const validateAndProcessConstraints = (constraints: ConstraintField[]): Constraint[] => {
   const constraintsToAdd: Constraint[] = [];
 
   if (constraints.length > 0) {
     for (const constraint of constraints) {
-      // Constraint type IN is ignored for runtime functions
-      // This is mostly a number/unit/int, so it makes sense to only have EQ, GTE, LTE
-      if (!Object.values(ConstraintType).slice(0, 3).includes(constraint.type)) {
+      if (!ALLOWED_CONSTRAINT_TYPES.has(constraint.type)) {
         throw new Error('Invalid constraint type');
       }
 
-      // Handle value validation in a appropriate to runtime function
-      if (
-        typeof constraint.value !== 'bigint' &&
-        typeof constraint.value !== 'boolean' &&
-        !isHex(constraint.value) &&
-        !isAddress(constraint.value)
-      ) {
-        throw new Error('Invalid constraint value');
+      const isSigned = SIGNED_CONSTRAINT_TYPES.has(constraint.type);
+
+      if (isSigned) {
+        // Signed constraints only accept bigint (including negative)
+        if (typeof constraint.value !== 'bigint') {
+          throw new Error('Invalid constraint value: signed constraints require bigint');
+        }
+
+        // Encode as int256 to preserve two's-complement representation
+        const valueHex = encodeAbiParameters([{ type: 'int256' }], [constraint.value]);
+        const encodedConstraintValue = encodeAbiParameters(
+          [{ type: 'bytes32' }],
+          [valueHex as Hex],
+        );
+        constraintsToAdd.push(prepareConstraint(constraint.type, encodedConstraintValue));
+      } else {
+        // Handle value validation appropriate to runtime function
+        if (
+          typeof constraint.value !== 'bigint' &&
+          typeof constraint.value !== 'boolean' &&
+          !isHex(constraint.value) &&
+          !isAddress(constraint.value)
+        ) {
+          throw new Error('Invalid constraint value');
+        }
+
+        if (typeof constraint.value === 'bigint' && constraint.value < BigInt(0)) {
+          throw new Error('Invalid constraint value');
+        }
+
+        const valueHex = toBytes32(constraint.value);
+        const encodedConstraintValue = encodeAbiParameters(
+          [{ type: 'bytes32' }],
+          [valueHex as Hex],
+        );
+        constraintsToAdd.push(prepareConstraint(constraint.type, encodedConstraintValue));
       }
-
-      if (typeof constraint.value === 'bigint' && constraint.value < BigInt(0)) {
-        throw new Error('Invalid constraint value');
-      }
-
-      const valueHex = toBytes32(constraint.value);
-      const encodedConstraintValue = encodeAbiParameters([{ type: 'bytes32' }], [valueHex as Hex]);
-
-      constraintsToAdd.push(prepareConstraint(constraint.type, encodedConstraintValue));
     }
   }
 
@@ -246,6 +286,8 @@ export const toConstraintFields = (constraints: RuntimeConstraint[]): Constraint
   constraints.map((c) => {
     if ('gte' in c) return greaterThanOrEqualTo(c.gte);
     if ('lte' in c) return lessThanOrEqualTo(c.lte);
+    if ('gteSigned' in c) return greaterThanOrEqualToSigned(c.gteSigned);
+    if ('lteSigned' in c) return lessThanOrEqualToSigned(c.lteSigned);
     return equalTo(c.eq);
   });
 
