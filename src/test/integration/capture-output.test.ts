@@ -50,13 +50,12 @@
  *   oneOutput(5) → slot = 10, but storage.check asserts slot == 999 → revert.
  */
 
-import { toBytes32 } from '@biconomy/abstractjs';
+import { createComposableBatch, toBytes32 } from 'smart-batching';
 import type { Abi, Address } from 'viem';
 import { getAddress, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient } from '../utils';
+import { account, initNexus, publicClient, toMeeCalls } from '../utils';
 import { STORAGE_WRITE_EXAMPLE_ABI } from './abi/storage-write-example';
 import { fundWithUsdc, USDC, usdcBalanceOf } from './helpers';
 
@@ -136,7 +135,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(2);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -183,7 +184,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(4);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -234,7 +237,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(2);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -288,7 +293,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(4);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -344,7 +351,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(6);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -401,7 +410,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(3);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -450,7 +461,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(2);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -510,7 +523,9 @@ describe('Integration — capture output params: execResult and staticCall (Base
     expect(batch.length).toBe(4);
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -548,7 +563,7 @@ describe('Integration — capture output params: execResult and staticCall (Base
     await expect(
       meeClient.getQuote({
         instructions: [
-          { calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true },
+          { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
         ],
         simulation: { simulate: true },
         feeToken: { address: USDC, chainId: baseSepolia.id },

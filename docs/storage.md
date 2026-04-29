@@ -110,7 +110,7 @@ const slot2 = await storage.read({ storageKey, slotIndex: 2 });
 Use `toBytes32` from the SDK to convert a known value for comparison:
 
 ```ts
-import { toBytes32 } from 'composable-sdk';
+import { toBytes32 } from 'smart-batching';
 
 const stored = await storage.read({ storageKey });
 console.log(stored === toBytes32(parseUnits('10', 6))); // true
@@ -159,6 +159,24 @@ await storage.runtimeValue({
   constraints: [{ gte: parseUnits('1', 6) }],  // slot must hold at least 1 USDC
 })
 ```
+
+```ts
+// Signed constraint — slot value is compared as int256
+await storage.runtimeValue({
+  storageKey,
+  constraints: [{ gteSigned: -100n }, { lteSigned: 500n }],
+})
+```
+
+```ts
+// OR constraint — passes if any one child passes
+await storage.runtimeValue({
+  storageKey,
+  constraints: [{ or: [{ eq: 0n }, { gte: parseUnits('1', 6) }] }],
+})
+```
+
+See [RuntimeConstraint reference](./token.md#runtimeconstraint) for all available constraint shapes.
 
 **Multi-output — reading indexed slots:**
 
@@ -227,6 +245,18 @@ batch.add([
 await storage.check({ storageKey, slotIndex: 0, constraints: [{ eq: 10n }] })
 await storage.check({ storageKey, slotIndex: 1, constraints: [{ eq: 21n }] })
 ```
+
+**Signed and OR constraints work the same way:**
+
+```ts
+// Signed — slot value compared as int256
+await storage.check({ storageKey, constraints: [{ gteSigned: -100n }] })
+
+// OR — passes if any one child passes
+await storage.check({ storageKey, constraints: [{ or: [{ eq: 0n }, { gte: 100n }] }] })
+```
+
+See [RuntimeConstraint reference](./token.md#runtimeconstraint) for all available constraint shapes.
 
 ---
 

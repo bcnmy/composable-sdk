@@ -21,11 +21,11 @@
 import { signerToEcdsaValidator } from '@zerodev/ecdsa-validator';
 import { createKernelAccount, createKernelAccountClient } from '@zerodev/sdk';
 import { getEntryPoint, KERNEL_V3_1 } from '@zerodev/sdk/constants';
+import { createComposableBatch } from 'smart-batching';
 import type { Address, Hex } from 'viem';
 import { encodeFunctionData, getAddress, http, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { createComposableBatch } from '../../core/batch';
 import { account, publicClient } from '../utils';
 import { ERC7579_ABI } from './abi/erc7579';
 import { fundWithEth, fundWithUsdc, USDC, usdcBalanceOf } from './helpers';

@@ -1,9 +1,8 @@
-import { toBytes32 } from '@biconomy/abstractjs';
+import { createComposableBatch, toBytes32 } from 'smart-batching';
 import { parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
-import { createComposableBatch } from '../../core/batch';
-import { account, initNexus, publicClient } from '../utils';
+import { account, initNexus, publicClient, toMeeCalls } from '../utils';
 import { fundWithUsdc, USDC } from './helpers';
 
 if (!account) throw new Error('PRIVATE_KEY is not set in environment');
@@ -53,7 +52,9 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     // 5. Get a quote for the composable instruction, then sign and submit it via MEE
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
@@ -96,7 +97,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     await expect(
       meeClient.getQuote({
         instructions: [
-          { calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true },
+          { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
         ],
         simulation: { simulate: true },
         feeToken: { address: USDC, chainId: baseSepolia.id },
@@ -135,7 +136,7 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     await expect(
       meeClient.getQuote({
         instructions: [
-          { calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true },
+          { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
         ],
         simulation: { simulate: true },
         feeToken: { address: USDC, chainId: baseSepolia.id },
@@ -183,7 +184,9 @@ describe('Integration — Biconomy abstractjs composable execution', () => {
     // 4. Get a quote for the composable instruction, then sign and submit it via MEE
 
     const quote = await meeClient.getQuote({
-      instructions: [{ calls: await batch.toCalls(), chainId: baseSepolia.id, isComposable: true }],
+      instructions: [
+        { calls: toMeeCalls(await batch.toCalls()), chainId: baseSepolia.id, isComposable: true },
+      ],
       simulation: { simulate: true },
       feeToken: { address: USDC, chainId: baseSepolia.id },
     });
