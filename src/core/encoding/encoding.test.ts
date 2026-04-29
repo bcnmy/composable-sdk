@@ -6,6 +6,7 @@ import {
   greaterThanOrEqualToSigned,
   lessThanOrEqualTo,
   lessThanOrEqualToSigned,
+  orConstraint,
   toConstraintFields,
   validateAndProcessConstraints,
 } from './encoding';
@@ -402,5 +403,161 @@ describe('validateAndProcessConstraints — general behaviour', () => {
       // biome-ignore lint/suspicious/noExplicitAny: intentional invalid type for test
       validateAndProcessConstraints([{ type: 99 as any, value: 0n }]),
     ).toThrow('Invalid constraint type');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// orConstraint helper
+// ---------------------------------------------------------------------------
+
+describe('orConstraint helper', () => {
+  it('returns a ConstraintField with type OR', () => {
+    const field = orConstraint([equalTo(0n)]);
+    expect(field.type).toBe(ConstraintType.OR);
+  });
+
+  it('stores the sub-constraints array as the value', () => {
+    const subs = [greaterThanOrEqualTo(10n), equalTo(0n)];
+    const field = orConstraint(subs);
+    expect(field.value).toBe(subs);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toConstraintFields — OR key
+// ---------------------------------------------------------------------------
+
+describe('toConstraintFields — OR', () => {
+  it('maps { or: [...] } to an OR ConstraintField', () => {
+    const [field] = toConstraintFields([{ or: [{ eq: 0n }, { gte: 100n }] }]);
+    expect(field.type).toBe(ConstraintType.OR);
+  });
+
+  it('sub-constraints inside OR are converted to ConstraintFields stored in value', () => {
+    const [field] = toConstraintFields([{ or: [{ eq: 0n }, { gte: 100n }] }]);
+    const subs = field.value as ReturnType<typeof equalTo>[];
+    expect(subs).toHaveLength(2);
+    expect(subs[0].type).toBe(ConstraintType.EQ);
+    expect(subs[1].type).toBe(ConstraintType.GTE);
+  });
+
+  it('OR sub-constraints can include signed variants (gteSigned, lteSigned)', () => {
+    const [field] = toConstraintFields([{ or: [{ gteSigned: -1n }, { lteSigned: 0n }] }]);
+    const subs = field.value as ReturnType<typeof greaterThanOrEqualToSigned>[];
+    expect(subs[0].type).toBe(ConstraintType.GTE_SIGNED);
+    expect(subs[1].type).toBe(ConstraintType.LTE_SIGNED);
+  });
+
+  it('OR can appear alongside other constraints in the same array — order is preserved', () => {
+    const fields = toConstraintFields([
+      { gte: 10n },
+      { or: [{ eq: 0n }, { gte: 100n }] },
+      { lte: 500n },
+    ]);
+    expect(fields[0].type).toBe(ConstraintType.GTE);
+    expect(fields[1].type).toBe(ConstraintType.OR);
+    expect(fields[2].type).toBe(ConstraintType.LTE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateAndProcessConstraints — OR
+// ---------------------------------------------------------------------------
+
+describe('validateAndProcessConstraints — OR', () => {
+  it('produces a constraint with type OR', () => {
+    const [c] = validateAndProcessConstraints([orConstraint([equalTo(0n)])]);
+    expect(c.constraintType).toBe(ConstraintType.OR);
+  });
+
+  it('referenceData is a non-empty hex string (ABI-encoded Constraint[] for the sub-constraints)', () => {
+    const [c] = validateAndProcessConstraints([
+      orConstraint([equalTo(0n), greaterThanOrEqualTo(100n)]),
+    ]);
+    expect(c.referenceData).toMatch(/^0x[0-9a-f]+$/i);
+    expect(c.referenceData.length).toBeGreaterThan(2);
+  });
+
+  it('OR with unsigned sub-constraints — EQ and GTE — encodes without error', () => {
+    expect(() =>
+      validateAndProcessConstraints([orConstraint([equalTo(0n), greaterThanOrEqualTo(100n)])]),
+    ).not.toThrow();
+  });
+
+  it('OR with unsigned sub-constraints — EQ and LTE — encodes without error', () => {
+    expect(() =>
+      validateAndProcessConstraints([orConstraint([equalTo(999n), lessThanOrEqualTo(50n)])]),
+    ).not.toThrow();
+  });
+
+  it('OR with signed sub-constraint GTE_SIGNED — accepts negative reference value', () => {
+    expect(() =>
+      validateAndProcessConstraints([orConstraint([greaterThanOrEqualToSigned(-1n), equalTo(0n)])]),
+    ).not.toThrow();
+    const [c] = validateAndProcessConstraints([
+      orConstraint([greaterThanOrEqualToSigned(-1n), equalTo(0n)]),
+    ]);
+    expect(c.constraintType).toBe(ConstraintType.OR);
+  });
+
+  it('OR with signed sub-constraint LTE_SIGNED — accepts negative reference value', () => {
+    expect(() =>
+      validateAndProcessConstraints([orConstraint([lessThanOrEqualToSigned(-100n)])]),
+    ).not.toThrow();
+  });
+
+  it('OR alongside other constraints — all constraints are processed in order', () => {
+    const result = validateAndProcessConstraints([
+      greaterThanOrEqualTo(10n),
+      orConstraint([equalTo(0n), greaterThanOrEqualTo(500n)]),
+      lessThanOrEqualTo(1000n),
+    ]);
+    expect(result).toHaveLength(3);
+    expect(result[0].constraintType).toBe(ConstraintType.GTE);
+    expect(result[1].constraintType).toBe(ConstraintType.OR);
+    expect(result[2].constraintType).toBe(ConstraintType.LTE);
+  });
+
+  it('referenceData changes when sub-constraints change — different inputs produce different encodings', () => {
+    const [or1] = validateAndProcessConstraints([orConstraint([equalTo(0n)])]);
+    const [or2] = validateAndProcessConstraints([orConstraint([equalTo(999n)])]);
+    expect(or1.referenceData).not.toBe(or2.referenceData);
+  });
+
+  it('rejects nested OR — OR inside OR is not supported by the contract', () => {
+    expect(() =>
+      validateAndProcessConstraints([
+        orConstraint([{ type: ConstraintType.OR, value: [equalTo(0n)] }]),
+      ]),
+    ).toThrow('Nested OR constraints are not supported');
+  });
+
+  it('rejects an OR with an empty sub-constraints array', () => {
+    expect(() => validateAndProcessConstraints([orConstraint([])])).toThrow(
+      'OR constraint must have at least one sub-constraint',
+    );
+  });
+
+  it('rejects an OR sub-constraint with an invalid type', () => {
+    expect(() =>
+      validateAndProcessConstraints([
+        // biome-ignore lint/suspicious/noExplicitAny: intentional invalid type for test
+        orConstraint([{ type: 99 as any, value: 0n }]),
+      ]),
+    ).toThrow('Invalid constraint type');
+  });
+
+  it('rejects a GTE_SIGNED sub-constraint inside OR when value is not a bigint', () => {
+    expect(() =>
+      validateAndProcessConstraints([
+        orConstraint([{ type: ConstraintType.GTE_SIGNED, value: true }]),
+      ]),
+    ).toThrow('signed constraints require bigint');
+  });
+
+  it('rejects an unsigned sub-constraint inside OR when value is a negative bigint', () => {
+    expect(() =>
+      validateAndProcessConstraints([orConstraint([greaterThanOrEqualTo(-1n)])]),
+    ).toThrow('Invalid constraint value');
   });
 });

@@ -16,7 +16,7 @@ import {
 import { NAMESPACE_STORAGE_CONTRACT_ADDRESS } from '../storage/constants';
 import { getBaseStorageSlot } from '../storage/slot';
 import type { AnyData } from '../types';
-import { COMPOSABILITY_MODULE_ABI_V1_1_0 } from './abis';
+import { COMPOSABILITY_MODULE_ABI_V1_1_0, CONSTRAINT_TUPLE_ABI } from './abis';
 import {
   encodeAddress,
   encodeRuntimeFunctionData,
@@ -24,6 +24,7 @@ import {
 } from './runtimeAbiEncoding';
 import {
   type Capture,
+  type ChildConstraint,
   type ComposableCall,
   type Constraint,
   type ConstraintField,
@@ -87,6 +88,11 @@ export const greaterThanOrEqualToSigned = (value: AnyData): ConstraintField => {
 // type any is being implicitly used. The appropriate value validation happens in the runtime function
 export const lessThanOrEqualToSigned = (value: AnyData): ConstraintField => {
   return { type: ConstraintType.LTE_SIGNED, value };
+};
+
+// value is ConstraintField[] — the sub-constraints that will be ABI-encoded as OR's referenceData
+export const orConstraint = (subConstraints: ConstraintField[]): ConstraintField => {
+  return { type: ConstraintType.OR, value: subConstraints };
 };
 
 export const runtimeParamViaCustomStaticCall = ({
@@ -218,7 +224,9 @@ const SIGNED_CONSTRAINT_TYPES = new Set<ConstraintType>([
   ConstraintType.LTE_SIGNED,
 ]);
 
-const ALLOWED_CONSTRAINT_TYPES = new Set<ConstraintType>([
+// Child types: all constraint types that can appear standalone or inside an OR.
+// OR itself is not here — it is handled separately and cannot be nested.
+const CHILD_CONSTRAINT_TYPES = new Set<ConstraintType>([
   ConstraintType.EQ,
   ConstraintType.GTE,
   ConstraintType.LTE,
@@ -226,52 +234,81 @@ const ALLOWED_CONSTRAINT_TYPES = new Set<ConstraintType>([
   ConstraintType.LTE_SIGNED,
 ]);
 
+/**
+ * Validates and encodes a single child constraint (non-OR).
+ * Throws if the type is OR — nested OR is not supported by the contract.
+ */
+const validateAndProcessChildConstraint = (constraint: ConstraintField): Constraint => {
+  if (constraint.type === ConstraintType.OR) {
+    throw new Error('Nested OR constraints are not supported');
+  }
+
+  if (!CHILD_CONSTRAINT_TYPES.has(constraint.type)) {
+    throw new Error('Invalid constraint type');
+  }
+
+  const isSigned = SIGNED_CONSTRAINT_TYPES.has(constraint.type);
+
+  if (isSigned) {
+    // Signed constraints only accept bigint (including negative)
+    if (typeof constraint.value !== 'bigint') {
+      throw new Error('Invalid constraint value: signed constraints require bigint');
+    }
+
+    // Encode as int256 to preserve two's-complement representation
+    const valueHex = encodeAbiParameters([{ type: 'int256' }], [constraint.value]);
+    const encodedConstraintValue = encodeAbiParameters([{ type: 'bytes32' }], [valueHex as Hex]);
+    return prepareConstraint(constraint.type, encodedConstraintValue);
+  }
+
+  // Unsigned / address / bool / hex path
+  if (
+    typeof constraint.value !== 'bigint' &&
+    typeof constraint.value !== 'boolean' &&
+    !isHex(constraint.value) &&
+    !isAddress(constraint.value)
+  ) {
+    throw new Error('Invalid constraint value');
+  }
+
+  if (typeof constraint.value === 'bigint' && constraint.value < BigInt(0)) {
+    throw new Error('Invalid constraint value');
+  }
+
+  const valueHex = toBytes32(constraint.value);
+  const encodedConstraintValue = encodeAbiParameters([{ type: 'bytes32' }], [valueHex as Hex]);
+  return prepareConstraint(constraint.type, encodedConstraintValue);
+};
+
 export const validateAndProcessConstraints = (constraints: ConstraintField[]): Constraint[] => {
   const constraintsToAdd: Constraint[] = [];
 
-  if (constraints.length > 0) {
-    for (const constraint of constraints) {
-      if (!ALLOWED_CONSTRAINT_TYPES.has(constraint.type)) {
-        throw new Error('Invalid constraint type');
+  for (const constraint of constraints) {
+    if (constraint.type === ConstraintType.OR) {
+      // value must be ConstraintField[] — the sub-constraints to OR together
+      if (!Array.isArray(constraint.value) || constraint.value.length === 0) {
+        throw new Error('OR constraint must have at least one sub-constraint');
       }
 
-      const isSigned = SIGNED_CONSTRAINT_TYPES.has(constraint.type);
+      // Process each sub-constraint through the child path — nested OR is rejected inside
+      const processedSubs: Constraint[] = (constraint.value as ConstraintField[]).map(
+        validateAndProcessChildConstraint,
+      );
 
-      if (isSigned) {
-        // Signed constraints only accept bigint (including negative)
-        if (typeof constraint.value !== 'bigint') {
-          throw new Error('Invalid constraint value: signed constraints require bigint');
-        }
+      // Encode the Constraint[] array as abi.encode(Constraint[]) — what the contract decodes
+      const encodedSubs = encodeAbiParameters(
+        [CONSTRAINT_TUPLE_ABI],
+        [
+          processedSubs.map((c) => ({
+            constraintType: c.constraintType,
+            referenceData: c.referenceData as Hex,
+          })),
+        ],
+      );
 
-        // Encode as int256 to preserve two's-complement representation
-        const valueHex = encodeAbiParameters([{ type: 'int256' }], [constraint.value]);
-        const encodedConstraintValue = encodeAbiParameters(
-          [{ type: 'bytes32' }],
-          [valueHex as Hex],
-        );
-        constraintsToAdd.push(prepareConstraint(constraint.type, encodedConstraintValue));
-      } else {
-        // Handle value validation appropriate to runtime function
-        if (
-          typeof constraint.value !== 'bigint' &&
-          typeof constraint.value !== 'boolean' &&
-          !isHex(constraint.value) &&
-          !isAddress(constraint.value)
-        ) {
-          throw new Error('Invalid constraint value');
-        }
-
-        if (typeof constraint.value === 'bigint' && constraint.value < BigInt(0)) {
-          throw new Error('Invalid constraint value');
-        }
-
-        const valueHex = toBytes32(constraint.value);
-        const encodedConstraintValue = encodeAbiParameters(
-          [{ type: 'bytes32' }],
-          [valueHex as Hex],
-        );
-        constraintsToAdd.push(prepareConstraint(constraint.type, encodedConstraintValue));
-      }
+      constraintsToAdd.push(prepareConstraint(ConstraintType.OR, encodedSubs));
+    } else {
+      constraintsToAdd.push(validateAndProcessChildConstraint(constraint));
     }
   }
 
@@ -280,15 +317,19 @@ export const validateAndProcessConstraints = (constraints: ConstraintField[]): C
 
 /**
  * Maps the user-facing RuntimeConstraint format to the internal ConstraintField format.
- * Handles gte, lte, and eq constraint types.
  */
+const toChildConstraintField = (c: ChildConstraint): ConstraintField => {
+  if ('gte' in c) return greaterThanOrEqualTo(c.gte);
+  if ('lte' in c) return lessThanOrEqualTo(c.lte);
+  if ('gteSigned' in c) return greaterThanOrEqualToSigned(c.gteSigned);
+  if ('lteSigned' in c) return lessThanOrEqualToSigned(c.lteSigned);
+  return equalTo(c.eq);
+};
+
 export const toConstraintFields = (constraints: RuntimeConstraint[]): ConstraintField[] =>
   constraints.map((c) => {
-    if ('gte' in c) return greaterThanOrEqualTo(c.gte);
-    if ('lte' in c) return lessThanOrEqualTo(c.lte);
-    if ('gteSigned' in c) return greaterThanOrEqualToSigned(c.gteSigned);
-    if ('lteSigned' in c) return lessThanOrEqualToSigned(c.lteSigned);
-    return equalTo(c.eq);
+    if ('or' in c) return orConstraint(c.or.map(toChildConstraintField));
+    return toChildConstraintField(c);
   });
 
 export const prepareTargetAndValueInputParams = (
