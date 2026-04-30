@@ -1,4 +1,4 @@
-# composable-sdk
+# smart-batching
 
 **Type-safe SDK for building composable ERC-8211 transactions on EVM smart accounts.**
 
@@ -6,7 +6,7 @@ With composable transactions, you describe what should happen — not just what 
 
 - **Call dependencies** — wire the output of one on-chain call directly into the input of the next, resolved at execution time. No need to know the value when building the transaction.
 - **Pre- and post-conditions** — assert the state of the chain before and after your writes. If any condition fails, the entire transaction reverts atomically and no partial state is committed.
-- **On-chain constraints** — attach bounds (`eq`, `gte`, `lte`) to any runtime value. The composability module enforces them during execution, acting as slippage guards, balance floors, or exact-match assertions.
+- **On-chain constraints** — attach bounds (`eq`, `gte`, `lte`, `gteSigned`, `lteSigned`) to any runtime value, or combine alternatives with `or`. The composability module enforces them during execution, acting as slippage guards, balance floors, or exact-match assertions.
 
 ---
 
@@ -57,7 +57,7 @@ A composable batch is a sequence of `ComposableCall` objects. Each call can cont
 - **Static args** — regular values fixed at signing time
 - **Runtime values** — placeholders resolved on-chain at execution time from a live balance, allowance, or storage slot
 - **Output captures** — instructions to store the return value of a call into a namespace storage slot, making it available as a runtime value for subsequent calls
-- **Constraints** — on-chain assertions (`eq`, `gte`, `lte`) that revert the entire UserOp if a condition fails
+- **Constraints** — on-chain assertions (`eq`, `gte`, `lte`, `gteSigned`, `lteSigned`, `or`) that revert the entire UserOp if a condition fails
 
 The module resolves the dependency graph and executes each call in order.
 
@@ -212,15 +212,18 @@ batch.add([
 
 Constraints are bounds attached to a runtime value or a `check` call. The composability module evaluates them on-chain before using the value — if any constraint fails, the transaction reverts immediately.
 
-Three constraint operators are available:
+The following constraint operators are available:
 
-| Operator | Description |
-|---|---|
-| `{ eq: value }` | The resolved value must equal `value` exactly |
-| `{ gte: value }` | The resolved value must be greater than or equal to `value` |
-| `{ lte: value }` | The resolved value must be less than or equal to `value` |
+| Operator | Comparison | Description |
+|---|---|---|
+| `{ eq: value }` | unsigned | The resolved value must equal `value` exactly |
+| `{ gte: value }` | unsigned | The resolved value must be ≥ `value` |
+| `{ lte: value }` | unsigned | The resolved value must be ≤ `value` |
+| `{ gteSigned: value }` | signed (`int256`) | The resolved value (as `int256`) must be ≥ `value` |
+| `{ lteSigned: value }` | signed (`int256`) | The resolved value (as `int256`) must be ≤ `value` |
+| `{ or: [...] }` | — | Passes if **any one** of the listed child constraints passes |
 
-Constraints can be combined. All must pass for execution to continue.
+Constraints can be combined. All top-level constraints must pass. Children inside `or` must be standard or signed constraints — nested `or` is not supported.
 
 #### Constraints on a check call
 
@@ -244,6 +247,27 @@ usdc.check({
   functionName: 'balanceOf',
   args: [poolAddress],
   constraints: [{ eq: 0n }],
+})
+```
+
+```ts
+// Signed range check — useful when a value may be negative (e.g. a signed price delta)
+oracle.check({
+  functionName: 'priceDelta',
+  args: [],
+  constraints: [
+    { gteSigned: -500n },  // delta must be >= -500 (int256 comparison)
+    { lteSigned: 500n },   // delta must be <= +500
+  ],
+})
+```
+
+```ts
+// OR check — balance must be exactly 0 OR at least 10 USDC
+usdc.check({
+  functionName: 'balanceOf',
+  args: [scaAddress],
+  constraints: [{ or: [{ eq: 0n }, { gte: parseUnits('10', 6) }] }],
 })
 ```
 
@@ -281,10 +305,10 @@ This pattern is a slippage guard: the batch only proceeds if the post-swap balan
 
 ```bash
 # npm
-npm install composable-sdk viem
+npm install smart-batching viem
 
 # bun
-bun add composable-sdk viem
+bun add smart-batching viem
 ```
 
 ---
@@ -298,7 +322,7 @@ Everything starts with `createComposableBatch`. It is the central builder that a
 ```ts
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { createComposableBatch } from 'composable-sdk';
+import { createComposableBatch } from 'smart-batching';
 
 const publicClient = createPublicClient({
   chain: baseSepolia,
@@ -409,7 +433,7 @@ const userOpHash = await kernelClient.sendUserOperation({
 ```ts
 import { createPublicClient, http, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { createComposableBatch } from 'composable-sdk';
+import { createComposableBatch } from 'smart-batching';
 
 const publicClient = createPublicClient({
   chain: baseSepolia,
@@ -481,7 +505,7 @@ Two capture strategies are available:
 ```ts
 import { createPublicClient, http, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { createComposableBatch } from 'composable-sdk';
+import { createComposableBatch } from 'smart-batching';
 
 const USDC = '0xUsdcAddress';
 
@@ -586,7 +610,7 @@ Use this pattern when you know the value at signing time but need it available a
 ```ts
 import { createPublicClient, http, parseUnits } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { createComposableBatch } from 'composable-sdk';
+import { createComposableBatch } from 'smart-batching';
 
 const USDC = '0xUsdcAddress';
 
