@@ -200,6 +200,26 @@ oracle.runtimeValue({
 })
 ```
 
+```ts
+// Signed constraint — useful when the resolved value may be negative
+oracle.runtimeValue({
+  functionName: 'priceDelta',
+  args: [],
+  constraints: [{ gteSigned: -500n }, { lteSigned: 500n }],
+})
+```
+
+```ts
+// OR constraint — passes if any one child passes
+oracle.runtimeValue({
+  functionName: 'score',
+  args: [],
+  constraints: [{ or: [{ eq: 0n }, { gte: 100n }] }],
+})
+```
+
+See [RuntimeConstraint reference](./token.md#runtimeconstraint) for all available constraint shapes.
+
 ---
 
 ### check
@@ -234,4 +254,24 @@ batch.add(
     constraints: [{ eq: 0n }],
   }),
 );
+
+// Signed constraint — assert a signed delta is within acceptable bounds
+batch.add(
+  pool.check({
+    functionName: 'priceDelta',
+    args: [],
+    constraints: [{ gteSigned: -500n }, { lteSigned: 500n }],
+  }),
+);
+
+// OR constraint — passes if any one child passes
+batch.add(
+  pool.check({
+    functionName: 'getLiquidity',
+    args: [],
+    constraints: [{ or: [{ eq: 0n }, { gte: parseUnits('10000', 6) }] }],
+  }),
+);
 ```
+
+See [RuntimeConstraint reference](./token.md#runtimeconstraint) for all available constraint shapes.

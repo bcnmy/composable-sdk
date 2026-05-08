@@ -274,10 +274,42 @@ batch.add(
 
 All runtime methods (`runtimeBalance`, `runtimeAllowance`, `runtimeValue`, `check`) accept constraints as `RuntimeConstraint[]`.
 
+**Standard constraints** (unsigned — value is treated as `uint256`):
+
 | Shape | Description |
 |---|---|
 | `{ eq: value }` | Resolved value must equal `value` exactly |
 | `{ gte: value }` | Resolved value must be ≥ `value` |
 | `{ lte: value }` | Resolved value must be ≤ `value` |
 
-The `value` in each constraint can be `bigint`, `boolean`, `Hex`, or `Address`. Constraints can be combined — all must pass.
+The `value` can be `bigint`, `boolean`, `Hex`, or `Address`.
+
+**Signed constraints** (value is treated as `int256`; use when the resolved value may be negative):
+
+| Shape | Description |
+|---|---|
+| `{ gteSigned: value }` | Resolved value (as `int256`) must be ≥ `value` |
+| `{ lteSigned: value }` | Resolved value (as `int256`) must be ≤ `value` |
+
+The `value` must be a `bigint` (negative bigints are valid).
+
+**OR constraint** (passes if at least one child constraint passes):
+
+| Shape | Description |
+|---|---|
+| `{ or: ChildConstraint[] }` | Passes if **any one** of the listed child constraints passes |
+
+Children inside `or` must be standard or signed constraints — nested `or` is not supported.
+
+All top-level constraints must pass. Examples:
+
+```ts
+// Unsigned range check
+constraints: [{ gte: parseUnits('10', 6) }, { lte: parseUnits('1000', 6) }]
+
+// Signed range check (e.g. a price delta that may be negative)
+constraints: [{ gteSigned: -100n }, { lteSigned: 500n }]
+
+// OR: balance must be exactly 0 OR at least 10 USDC
+constraints: [{ or: [{ eq: 0n }, { gte: parseUnits('10', 6) }] }]
+```
